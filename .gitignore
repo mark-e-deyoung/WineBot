@@ -1,0 +1,19 @@
+# Local apps/executables
+/apps/*
+!/apps/.gitkeep
+
+# Local environment overrides
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Editor/OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Local archives
+WineBot-codex-starter-files.zip

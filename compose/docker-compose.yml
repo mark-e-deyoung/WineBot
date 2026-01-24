@@ -1,0 +1,56 @@
+version: "3.9"
+
+x-winebot-env: &winebot_env
+  WINEPREFIX: /wineprefix
+  DISPLAY: :99
+  SCREEN: 1920x1080x24
+  APP_EXE: ${APP_EXE:-}
+  APP_ARGS: ${APP_ARGS:-}
+  WORKDIR: ${WORKDIR:-}
+  APP_NAME: ${APP_NAME:-}
+  INIT_PREFIX: ${INIT_PREFIX:-1}
+  WINEARCH: ${WINEARCH:-win64}
+  RUN_AUTOMATION: ${RUN_AUTOMATION:-0}
+  AUTOMATION_CMD: ${AUTOMATION_CMD:-}
+  ENABLE_VNC: ${ENABLE_VNC:-}
+  VNC_PORT: ${VNC_PORT:-5900}
+  NOVNC_PORT: ${NOVNC_PORT:-6080}
+  NOVNC_HOST: ${NOVNC_HOST:-}
+  NOVNC_TITLE: ${NOVNC_TITLE:-}
+  VNC_PASSWORD: ${VNC_PASSWORD:-}
+  VNC_BIND: ${VNC_BIND:-}
+
+x-winebot-base: &winebot_base
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  image: winebot:latest
+  volumes:
+    - wineprefix:/wineprefix
+    - ../apps:/apps
+    - ../automation/assets:/automation/assets
+
+services:
+  winebot:
+    <<: *winebot_base
+    profiles:
+      - headless
+    environment:
+      <<: *winebot_env
+      MODE: headless
+
+  winebot-interactive:
+    <<: *winebot_base
+    profiles:
+      - interactive
+    environment:
+      <<: *winebot_env
+      MODE: interactive
+      ENABLE_VNC: "1"
+      VNC_PASSWORD: ${VNC_PASSWORD:-winebot}
+    ports:
+      - "5900:5900"
+      - "6080:6080"
+
+volumes:
+  wineprefix:
