@@ -30,6 +30,20 @@ Enforce a fixed resolution and avoid UI scaling. Always use the same `SCREEN` va
 
 Set `VNC_PASSWORD` and avoid exposing ports publicly. Bind to localhost when running without a password.
 
+## Crash dumps and winedbg
+
+Use winedbg to capture minidumps or automatic crash summaries:
+
+`winedbg --minidump /tmp/crash.mdmp <wpid>`
+
+`winedbg --auto <wpid>`
+
+## Verbose Wine logs
+
+Set `WINEDEBUG` to enable trace channels. Example:
+
+`WINEDEBUG=+seh,+tid,+timestamp`
+
 ## docker-compose v1 ContainerConfig error
 
 On some hosts with `docker-compose` v1, you may see `ContainerConfig` errors when recreating containers.

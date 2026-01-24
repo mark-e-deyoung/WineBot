@@ -22,3 +22,5 @@ Exit codes:
 
 - `0` match found and clicked
 - `2` no match found after retries
+
+For debugger-driven automation (winedbg, gdb proxy, scripted commands), see `docs/debugging.md`.

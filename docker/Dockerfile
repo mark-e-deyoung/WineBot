@@ -12,7 +12,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
     && apt-get install -y --no-install-recommends \
         wine wine64 wine32 winetricks cabextract \
         xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify \
-        python3 python3-pip python3-opencv \
+        python3 python3-pip python3-opencv gdb \
         imagemagick x11-utils procps \
         ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*

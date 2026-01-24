@@ -13,6 +13,12 @@ Options:
   --workdir PATH               Working directory inside the container (optional).
   --winarch win32              Use a 32-bit Wine prefix for this run.
   --automation "CMD"           Run an automation command after launch.
+  --winedbg                    Launch under winedbg.
+  --winedbg-mode gdb|default   Set winedbg mode (default: gdb).
+  --winedbg-port PORT          Set gdb proxy port (default: 2345).
+  --winedbg-no-start           Do not auto-start gdb (default).
+  --winedbg-command "CMD"      Run a winedbg command (default mode only).
+  --winedbg-script PATH        Run winedbg commands from a file (default mode only).
   --detach, -d                 Run in the background.
   --no-build                   Skip building the image.
   -h, --help                   Show this help.
@@ -37,6 +43,12 @@ app_args=""
 workdir=""
 winearch=""
 automation_cmd=""
+enable_winedbg="0"
+winedbg_mode=""
+winedbg_port=""
+winedbg_no_start=""
+winedbg_command=""
+winedbg_script=""
 build="1"
 detach="0"
 
@@ -66,6 +78,33 @@ while [ $# -gt 0 ]; do
       ;;
     --automation)
       automation_cmd="${2:-}"
+      shift
+      ;;
+    --winedbg)
+      enable_winedbg="1"
+      ;;
+    --winedbg-mode)
+      enable_winedbg="1"
+      winedbg_mode="${2:-}"
+      shift
+      ;;
+    --winedbg-port)
+      enable_winedbg="1"
+      winedbg_port="${2:-}"
+      shift
+      ;;
+    --winedbg-no-start)
+      enable_winedbg="1"
+      winedbg_no_start="1"
+      ;;
+    --winedbg-command)
+      enable_winedbg="1"
+      winedbg_command="${2:-}"
+      shift
+      ;;
+    --winedbg-script)
+      enable_winedbg="1"
+      winedbg_script="${2:-}"
       shift
       ;;
     --detach|-d)
@@ -159,6 +198,24 @@ if [ -n "$winearch" ]; then
 fi
 if [ -n "$automation_cmd" ]; then
   env_vars+=(RUN_AUTOMATION="1" AUTOMATION_CMD="$automation_cmd")
+fi
+if [ "$enable_winedbg" = "1" ]; then
+  env_vars+=(ENABLE_WINEDBG="1")
+fi
+if [ -n "$winedbg_mode" ]; then
+  env_vars+=(WINEDBG_MODE="$winedbg_mode")
+fi
+if [ -n "$winedbg_port" ]; then
+  env_vars+=(WINEDBG_PORT="$winedbg_port")
+fi
+if [ -n "$winedbg_no_start" ]; then
+  env_vars+=(WINEDBG_NO_START="$winedbg_no_start")
+fi
+if [ -n "$winedbg_command" ]; then
+  env_vars+=(WINEDBG_COMMAND="$winedbg_command")
+fi
+if [ -n "$winedbg_script" ]; then
+  env_vars+=(WINEDBG_SCRIPT="$winedbg_script")
 fi
 
 compose_args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up --force-recreate)

@@ -9,6 +9,8 @@ Run a basic smoke test against the WineBot services.
 
 Options:
   --include-interactive  Also verify VNC/noVNC services.
+  --include-debug        Run a winedbg smoke check.
+  --include-debug-proxy  Run a winedbg gdb proxy smoke check.
   --full                 Run the Notepad automation check.
   --no-build             Skip building the image.
   --cleanup              Stop services started by this script.
@@ -17,6 +19,8 @@ EOF
 }
 
 include_interactive="0"
+include_debug="0"
+include_debug_proxy="0"
 full="0"
 build="1"
 cleanup="0"
@@ -25,6 +29,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --include-interactive)
       include_interactive="1"
+      ;;
+    --include-debug)
+      include_debug="1"
+      ;;
+    --include-debug-proxy)
+      include_debug_proxy="1"
       ;;
     --full)
       full="1"
@@ -116,8 +126,13 @@ wait_for_windows() {
 
 started_headless="0"
 started_interactive="0"
+debug_proxy_container=""
 
 cleanup_services() {
+  if [ -n "$debug_proxy_container" ]; then
+    docker rm -f "$debug_proxy_container" >/dev/null 2>&1 || true
+    debug_proxy_container=""
+  fi
   if [ "$cleanup" = "1" ]; then
     log "Stopping services started by smoke test..."
     if [ "$started_interactive" = "1" ]; then
@@ -129,7 +144,7 @@ cleanup_services() {
   fi
 }
 
-if [ "$cleanup" = "1" ]; then
+if [ "$cleanup" = "1" ] || [ "$include_debug_proxy" = "1" ]; then
   trap cleanup_services EXIT
 fi
 
@@ -170,6 +185,94 @@ if [ "$full" = "1" ]; then
   notepad_output="/wineprefix/drive_c/users/winebot/Temp/winebot_smoke_test.txt"
   compose_exec headless winebot "pkill -f '[n]otepad.exe' >/dev/null 2>&1 || true"
   compose_exec headless winebot "python3 automation/notepad_create_and_verify.py --text 'WineBot smoke test' --output '$notepad_output' --launch --timeout 60 --save-timeout 60 --retry-interval 1 --delay 75"
+fi
+
+if [ "$include_debug" = "1" ]; then
+  log "Running winedbg smoke check..."
+  winedbg_env=(ENABLE_WINEDBG=1 WINEDBG_MODE=default "WINEDBG_COMMAND=info proc" APP_EXE=cmd.exe)
+  env "${winedbg_env[@]}" "${compose_cmd[@]}" -f "$compose_file" --profile headless run --rm winebot
+fi
+
+if [ "$include_debug_proxy" = "1" ]; then
+  log "Running winedbg gdb proxy check..."
+  debug_app_exe="cmd.exe"
+  debug_proxy_container="$("${compose_cmd[@]}" -f "$compose_file" --profile headless run -d \
+    -e ENABLE_WINEDBG=1 \
+    -e WINEDBG_MODE=gdb \
+    -e WINEDBG_PORT=2345 \
+    -e WINEDBG_NO_START=1 \
+    -e APP_EXE="$debug_app_exe" \
+    -e APP_ARGS="/k ping -t 127.0.0.1" \
+    winebot)"
+
+  set +e
+  for _ in $(seq 1 30); do
+    docker exec --user winebot "$debug_proxy_container" python3 - <<'PY'
+import socket
+sock = socket.socket()
+sock.settimeout(1)
+try:
+    sock.connect(("127.0.0.1", 2345))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      break
+    fi
+    sleep 1
+  done
+  set -e
+
+  info_proc_log="$(mktemp)"
+  info_rc=0
+  info_found="0"
+  set +e
+  for _ in $(seq 1 10); do
+    docker exec --user winebot "$debug_proxy_container" winedbg --command "info proc" >"$info_proc_log" 2>&1
+    info_rc=$?
+    if [ "$info_rc" -eq 0 ] && grep -qi "$debug_app_exe" "$info_proc_log"; then
+      info_found="1"
+      break
+    fi
+    sleep 1
+  done
+  set -e
+  if [ "$info_found" != "1" ]; then
+    cat "$info_proc_log" >&2
+    rm -f "$info_proc_log"
+    if [ "$info_rc" -ne 0 ]; then
+      fail "winedbg info proc failed (exit $info_rc)"
+    fi
+    fail "Expected $debug_app_exe in winedbg info proc output"
+  fi
+  rm -f "$info_proc_log"
+
+  gdb_log="$(mktemp)"
+  set +e
+  docker exec --user winebot "$debug_proxy_container" gdb -q \
+    -ex "set pagination off" \
+    -ex "target remote localhost:2345" \
+    -ex "info threads" \
+    -ex "detach" \
+    -ex "quit" 2>&1 | tee "$gdb_log"
+  gdb_rc=${PIPESTATUS[0]}
+  set -e
+  if [ "$gdb_rc" -ne 0 ]; then
+    if grep -q "Thread" "$gdb_log"; then
+      log "gdb exited with code $gdb_rc but reported threads; continuing"
+    else
+      cat "$gdb_log" >&2
+      rm -f "$gdb_log"
+      fail "gdb proxy check failed (exit $gdb_rc)"
+    fi
+  fi
+  rm -f "$gdb_log"
+
+  docker rm -f "$debug_proxy_container" >/dev/null 2>&1 || true
+  debug_proxy_container=""
 fi
 
 if [ "$include_interactive" = "1" ]; then

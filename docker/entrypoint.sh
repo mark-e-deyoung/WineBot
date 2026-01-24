@@ -9,6 +9,12 @@ export INIT_PREFIX="${INIT_PREFIX:-1}"
 export ENABLE_VNC="${ENABLE_VNC:-0}"
 export VNC_PORT="${VNC_PORT:-5900}"
 export NOVNC_PORT="${NOVNC_PORT:-6080}"
+export ENABLE_WINEDBG="${ENABLE_WINEDBG:-0}"
+export WINEDBG_MODE="${WINEDBG_MODE:-}"
+export WINEDBG_PORT="${WINEDBG_PORT:-}"
+export WINEDBG_NO_START="${WINEDBG_NO_START:-}"
+export WINEDBG_COMMAND="${WINEDBG_COMMAND:-}"
+export WINEDBG_SCRIPT="${WINEDBG_SCRIPT:-}"
 
 display_number="${DISPLAY##*:}"
 display_number="${display_number%%.*}"
@@ -141,14 +147,54 @@ if [ -n "${APP_EXE:-}" ]; then
     APP_ARGS="/k echo WineBot ready"
     use_wineconsole="1"
   fi
-  if [ -n "${APP_ARGS:-}" ]; then
-    if [ "$use_wineconsole" = "1" ]; then
-      wineconsole "$APP_EXE" $APP_ARGS &
-    else
-      wine "$APP_EXE" $APP_ARGS &
+  if [ "$ENABLE_WINEDBG" = "1" ]; then
+    winedbg_mode="${WINEDBG_MODE:-gdb}"
+    winedbg_args=()
+    case "$winedbg_mode" in
+      ""|gdb)
+        winedbg_args+=(--gdb)
+        if [ "${WINEDBG_NO_START:-1}" = "1" ]; then
+          winedbg_args+=(--no-start)
+        fi
+        winedbg_port="${WINEDBG_PORT:-2345}"
+        if [ "$winedbg_port" != "0" ]; then
+          winedbg_args+=(--port "$winedbg_port")
+          echo "winedbg gdb proxy listening on port ${winedbg_port}"
+        fi
+        if [ -n "${WINEDBG_COMMAND:-}" ] || [ -n "${WINEDBG_SCRIPT:-}" ]; then
+          echo "WINEDBG_COMMAND/WINEDBG_SCRIPT require WINEDBG_MODE=default" >&2
+          exit 1
+        fi
+        ;;
+      default)
+        if [ -n "${WINEDBG_COMMAND:-}" ]; then
+          winedbg_args+=(--command "$WINEDBG_COMMAND")
+        fi
+        if [ -n "${WINEDBG_SCRIPT:-}" ]; then
+          winedbg_args+=(--file "$WINEDBG_SCRIPT")
+        fi
+        ;;
+      *)
+        echo "Invalid WINEDBG_MODE: $winedbg_mode (expected gdb or default)" >&2
+        exit 1
+        ;;
+    esac
+
+    winedbg_cmd=(winedbg "${winedbg_args[@]}" "$APP_EXE")
+    if [ -n "${APP_ARGS:-}" ]; then
+      winedbg_cmd+=($APP_ARGS)
     fi
+    "${winedbg_cmd[@]}" &
   else
-    wine "$APP_EXE" &
+    if [ -n "${APP_ARGS:-}" ]; then
+      if [ "$use_wineconsole" = "1" ]; then
+        wineconsole "$APP_EXE" $APP_ARGS &
+      else
+        wine "$APP_EXE" $APP_ARGS &
+      fi
+    else
+      wine "$APP_EXE" &
+    fi
   fi
   app_pid=$!
 fi

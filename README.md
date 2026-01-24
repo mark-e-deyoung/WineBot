@@ -62,6 +62,18 @@ Change the default VNC password in `compose/docker-compose.yml`.
 
 The image is saved to `/tmp/screenshot.png` inside the container.
 
+## Debug with winedbg
+
+Run an app under winedbg's gdb proxy (port 2345):
+
+`ENABLE_WINEDBG=1 WINEDBG_MODE=gdb WINEDBG_PORT=2345 WINEDBG_NO_START=1 APP_EXE=/apps/MyApp.exe docker compose -f compose/docker-compose.yml --profile interactive up --build`
+
+Then connect from the host:
+
+`gdb -ex "target remote localhost:2345"`
+
+See `docs/debugging.md` for scripted commands and additional tooling.
+
 ## Run the sample CV automation
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot python3 automation/find_and_click.py --template automation/assets/example_button.png`
@@ -78,6 +90,8 @@ Variants:
 
 - `scripts/smoke-test.sh --full`
 - `scripts/smoke-test.sh --include-interactive`
+- `scripts/smoke-test.sh --include-debug`
+- `scripts/smoke-test.sh --include-debug-proxy`
 - `scripts/smoke-test.sh --full --cleanup`
 
 ## Releases & GHCR
@@ -94,6 +108,7 @@ Manual runs are supported via Actions → Release → Run workflow. Provide `ima
 
 - `docs/architecture.md`
 - `docs/automation.md`
+- `docs/debugging.md`
 - `docs/installing-apps.md`
 - `docs/testing.md`
 - `docs/troubleshooting.md`
