@@ -8,9 +8,10 @@ on:
       image_tag:
         description: Optional image tag for manual runs (default: manual-<sha>)
         required: false
-        type: string
+        default: ""
 
-permissions: read-all
+permissions:
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
