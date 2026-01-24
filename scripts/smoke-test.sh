@@ -167,8 +167,9 @@ compose_exec headless winebot "rm -f '$marker'"
 
 if [ "$full" = "1" ]; then
   log "Running Notepad automation..."
+  notepad_output="/wineprefix/drive_c/users/winebot/Temp/winebot_smoke_test.txt"
   compose_exec headless winebot "pkill -f '[n]otepad.exe' >/dev/null 2>&1 || true"
-  compose_exec headless winebot "python3 automation/notepad_create_and_verify.py --text 'WineBot smoke test' --output /tmp/winebot_smoke_test.txt --launch"
+  compose_exec headless winebot "python3 automation/notepad_create_and_verify.py --text 'WineBot smoke test' --output '$notepad_output' --launch --timeout 60 --save-timeout 60 --retry-interval 1 --delay 75"
 fi
 
 if [ "$include_interactive" = "1" ]; then
