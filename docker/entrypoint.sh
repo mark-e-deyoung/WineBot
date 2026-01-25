@@ -67,7 +67,46 @@ if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     wineboot --init >/dev/null 2>&1
 fi
 
-# 5. Execute Command
+# 6. Execute under winedbg if requested
+if [ "${ENABLE_WINEDBG:-0}" = "1" ]; then
+    WINEDBG_MODE="${WINEDBG_MODE:-gdb}"
+    WINEDBG_ARGS=()
+    
+    if [ "$WINEDBG_MODE" = "gdb" ]; then
+        WINEDBG_ARGS+=("--gdb")
+        if [ -n "${WINEDBG_PORT:-}" ] && [ "${WINEDBG_PORT}" != "0" ]; then
+            WINEDBG_ARGS+=("--port" "$WINEDBG_PORT")
+        fi
+        if [ "${WINEDBG_NO_START:-0}" = "1" ]; then
+            WINEDBG_ARGS+=("--no-start")
+        fi
+    else
+        # default mode
+        if [ -n "${WINEDBG_COMMAND:-}" ]; then
+            WINEDBG_ARGS+=("--command" "$WINEDBG_COMMAND")
+        fi
+        if [ -n "${WINEDBG_SCRIPT:-}" ]; then
+            WINEDBG_ARGS+=("--file" "$WINEDBG_SCRIPT")
+        fi
+    fi
+
+    # Determine command to run
+    if [ $# -gt 0 ]; then
+        CMD=("$@")
+    else
+        APP_EXE="${APP_EXE:-cmd.exe}"
+        if [ "$APP_EXE" = "cmd.exe" ] && [ -z "${APP_ARGS:-}" ]; then
+            CMD=(wineconsole cmd)
+        else
+            CMD=(wine "$APP_EXE" $APP_ARGS)
+        fi
+    fi
+
+    echo "--> Running under winedbg ($WINEDBG_MODE): ${CMD[*]}"
+    exec winedbg "${WINEDBG_ARGS[@]}" "${CMD[@]}"
+fi
+
+# 7. Execute normal command
 if [ $# -gt 0 ]; then
     # Mode A: Pass-through (Arguments provided)
     # This allows: docker run ... winebot make

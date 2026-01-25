@@ -1,5 +1,3 @@
-version: "3.9"
-
 x-winebot-env: &winebot_env
   WINEPREFIX: /wineprefix
   DISPLAY: :99

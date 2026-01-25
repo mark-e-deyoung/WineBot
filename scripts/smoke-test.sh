@@ -189,7 +189,7 @@ fi
 
 if [ "$include_debug" = "1" ]; then
   log "Running winedbg smoke check..."
-  winedbg_env=(ENABLE_WINEDBG=1 WINEDBG_MODE=default "WINEDBG_COMMAND=info proc" APP_EXE=cmd.exe)
+  winedbg_env=(ENABLE_WINEDBG=1 WINEDBG_MODE=default "WINEDBG_COMMAND=info proc; quit" APP_EXE=cmd.exe)
   env "${winedbg_env[@]}" "${compose_cmd[@]}" -f "$compose_file" --profile headless run --rm winebot
 fi
 
