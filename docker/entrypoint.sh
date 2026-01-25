@@ -94,12 +94,7 @@ if [ "${ENABLE_WINEDBG:-0}" = "1" ]; then
     if [ $# -gt 0 ]; then
         CMD=("$@")
     else
-        APP_EXE="${APP_EXE:-cmd.exe}"
-        if [ "$APP_EXE" = "cmd.exe" ] && [ -z "${APP_ARGS:-}" ]; then
-            CMD=(wineconsole cmd)
-        else
-            CMD=(wine "$APP_EXE" $APP_ARGS)
-        fi
+        CMD=("${APP_EXE:-cmd.exe}" $APP_ARGS)
     fi
 
     echo "--> Running under winedbg ($WINEDBG_MODE): ${CMD[*]}"
