@@ -200,8 +200,14 @@ Include volume mounts:
 
 ---
 
-## 8) Minimal automation SDK (required)
+## 8) Automation SDK (required)
 
+### Windows Tools (Inside Wine)
+- **AutoIt v3**: `autoit script.au3`
+- **AutoHotkey v1.1**: `ahk script.ahk`
+- **Python**: `winpy script.py`
+
+### Linux Tools (External)
 ### `automation/screenshot.sh`
 Takes a screenshot of display `:99` and writes it to `/tmp/screenshot.png` (and/or prints path).
 

@@ -1,0 +1,8 @@
+#!/bin/bash
+export WINEDEBUG=-all
+# Prefer 64-bit if available, otherwise 32-bit
+if [ -f "/opt/winebot/windows-tools/AutoHotkey/AutoHotkeyU64.exe" ]; then
+    exec wine "/opt/winebot/windows-tools/AutoHotkey/AutoHotkeyU64.exe" "$@"
+else
+    exec wine "/opt/winebot/windows-tools/AutoHotkey/AutoHotkeyU32.exe" "$@"
+fi

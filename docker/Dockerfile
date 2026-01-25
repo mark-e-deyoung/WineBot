@@ -14,11 +14,24 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify \
         python3 python3-pip python3-opencv gdb \
         imagemagick x11-utils procps \
-        ca-certificates curl \
+        ca-certificates curl gosu unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix
+
+# --- Windows Automation Tools ---
+COPY windows-tools /tmp/windows-tools
+RUN bash /tmp/windows-tools/download_tools.sh \
+    && cp /tmp/windows-tools/wrappers/* /usr/local/bin/ \
+    && chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy \
+    && rm -rf /tmp/windows-tools
+
+# Bootstrap pip for Windows Python
+RUN curl -sL -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py \
+    && wine /opt/winebot/windows-tools/Python/python.exe /tmp/get-pip.py --no-warn-script-location \
+    && rm /tmp/get-pip.py
+# --------------------------------
 
 RUN useradd -m -u 1000 -s /bin/bash winebot \
     && mkdir -p /wineprefix /apps /automation \

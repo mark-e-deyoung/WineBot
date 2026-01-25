@@ -14,7 +14,27 @@ Interactive (VNC + noVNC):
 
 If you only have `docker-compose` v1 installed, replace `docker compose` with `docker-compose`.
 
-## Run a Windows app
+## Simplified Usage (v0.4+)
+
+The updated entrypoint allows running commands directly with automatic Xvfb management and host user mapping.
+
+**Run a command (pass-through):**
+```bash
+# Runs 'make' inside the container as the current host user
+docker run --rm -v $(pwd):/work -w /work -e HOST_UID=$(id -u) winebot make
+```
+
+**Run a Windows executable:**
+```bash
+docker run --rm -v $(pwd):/work -w /work -e HOST_UID=$(id -u) winebot wine myapp.exe
+```
+
+**Interactive Shell:**
+```bash
+docker run --rm -it -e HOST_UID=$(id -u) winebot bash
+```
+
+## Run a Windows app (Compose)
 
 1. Put your executable in `./apps`.
 2. Set `APP_EXE` to the path inside the container (defaults to `cmd.exe` if unset).
@@ -60,7 +80,7 @@ Change the default VNC password in `compose/docker-compose.yml`.
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`
 
-The image is saved to `/tmp/screenshot.png` inside the container.
+The image is saved to `/tmp/screenshot_YYYY-MM-DD_HH-MM-SS.png` inside the container. You can also specify a custom path or directory as an argument.
 
 ## Debug with winedbg
 
@@ -81,6 +101,20 @@ See `docs/debugging.md` for scripted commands and additional tooling.
 ## Run the Notepad automation
 
 `docker compose -f compose/docker-compose.yml --profile interactive exec --user winebot winebot-interactive python3 automation/notepad_create_and_verify.py --text "Hello from WineBot" --output /tmp/notepad_test.txt --launch`
+
+## Windows Automation Tools
+
+WineBot includes pre-installed Windows automation tools running under Wine:
+
+- **AutoIt v3** (`autoit`)
+- **AutoHotkey v1.1** (`ahk`)
+- **Python 3.11** (`winpy`)
+
+See [docs/windows-automation-tools.md](docs/windows-automation-tools.md) for usage.
+
+Run the tool smoke tests:
+
+`docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./tests/run_smoke_tests.sh`
 
 ## Smoke test
 
