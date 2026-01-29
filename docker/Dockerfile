@@ -9,6 +9,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
     fi \
     && dpkg --add-architecture i386 \
     && apt-get update \
+    && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         wine wine64 wine32 winetricks cabextract \
         xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify \
