@@ -129,4 +129,28 @@ When launching via `scripts/run-app.sh`, you can auto-open a viewer:
 scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view novnc
 ```
 
-Supported modes: `auto`, `novnc`, `vnc`. This forces interactive mode and launches a browser or VNC client. When noVNC is used, the VNC password is passed via URL for auto-connect.
+Supported modes: `auto`, `novnc`, `vnc`. This forces interactive mode and launches a browser or VNC client. When noVNC is used, the VNC password is passed via URL for auto-connect (disable with `--no-password-url`).
+
+Example with explicit password:
+
+```bash
+scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" \
+  --view novnc \
+  --novnc-password "winebot"
+```
+
+To avoid embedding the password in the URL:
+
+```bash
+scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" \
+  --view novnc \
+  --no-password-url
+```
+
+For VNC viewers, use a password file capable client (e.g., `vncviewer`) and pass a password:
+
+```bash
+scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" \
+  --view vnc \
+  --vnc-password "winebot"
+```

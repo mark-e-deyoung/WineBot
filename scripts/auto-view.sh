@@ -9,8 +9,10 @@ Options:
   --mode auto|novnc|vnc  Viewer mode (default: auto)
   --novnc-url URL        noVNC URL (default: http://localhost:6080/vnc.html?autoconnect=1&resize=scale)
   --novnc-password PASS  noVNC password (optional; enables auto-connect without prompts)
+  --no-password-url      Do not embed the password in the URL (disables auto-connect if password required)
   --vnc-host HOST        VNC host (default: localhost)
   --vnc-port PORT        VNC port (default: 5900)
+  --vnc-password PASS    VNC password (optional; used for non-interactive VNC viewers)
   --viewer CMD           Specific VNC viewer command (optional)
   --timeout SEC          Wait for port timeout in seconds (default: 30)
   -h, --help             Show this help
@@ -20,8 +22,10 @@ EOF
 mode="auto"
 novnc_url="http://localhost:6080/vnc.html?autoconnect=1&resize=scale"
 novnc_password=""
+no_password_url="0"
 vnc_host="localhost"
 vnc_port="5900"
+vnc_password=""
 timeout="30"
 viewer_cmd=""
 
@@ -39,12 +43,20 @@ while [ $# -gt 0 ]; do
       novnc_password="${2:-}"
       shift 2
       ;;
+    --no-password-url)
+      no_password_url="1"
+      shift
+      ;;
     --vnc-host)
       vnc_host="${2:-}"
       shift 2
       ;;
     --vnc-port)
       vnc_port="${2:-}"
+      shift 2
+      ;;
+    --vnc-password)
+      vnc_password="${2:-}"
       shift 2
       ;;
     --viewer)
@@ -112,7 +124,7 @@ open_browser() {
   return 1
 }
 
-if [ -n "$novnc_password" ]; then
+if [ -n "$novnc_password" ] && [ "$no_password_url" != "1" ]; then
   encoded_pass="$(NOVNC_PASSWORD="$novnc_password" python3 - <<'PY'
 import os
 import urllib.parse
@@ -133,26 +145,57 @@ open_vnc() {
   fi
 
   if command -v vncviewer >/dev/null 2>&1; then
-    vncviewer "${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
+    if [ -n "$vnc_password" ]; then
+      if command -v vncpasswd >/dev/null 2>&1; then
+        passfile="$(mktemp)"
+        printf '%s' "$vnc_password" | vncpasswd -f > "$passfile"
+        vncviewer -passwd "$passfile" "${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
+      else
+        echo "vncpasswd not found; cannot provide VNC password non-interactively." >&2
+        return 1
+      fi
+    else
+      vncviewer "${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
+    fi
     return 0
   fi
   if command -v gvncviewer >/dev/null 2>&1; then
+    if [ -n "$vnc_password" ]; then
+      echo "gvncviewer password automation not supported; use vncviewer or noVNC." >&2
+      return 1
+    fi
     gvncviewer "${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
     return 0
   fi
   if command -v remmina >/dev/null 2>&1; then
+    if [ -n "$vnc_password" ]; then
+      echo "remmina password automation not supported; use vncviewer or noVNC." >&2
+      return 1
+    fi
     remmina -c "vnc://${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
     return 0
   fi
   if command -v vinagre >/dev/null 2>&1; then
+    if [ -n "$vnc_password" ]; then
+      echo "vinagre password automation not supported; use vncviewer or noVNC." >&2
+      return 1
+    fi
     vinagre "vnc://${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
     return 0
   fi
   if command -v krdc >/dev/null 2>&1; then
+    if [ -n "$vnc_password" ]; then
+      echo "krdc password automation not supported; use vncviewer or noVNC." >&2
+      return 1
+    fi
     krdc "vnc://${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
     return 0
   fi
   if command -v open >/dev/null 2>&1; then
+    if [ -n "$vnc_password" ]; then
+      echo "open vnc:// does not support password automation; use vncviewer or noVNC." >&2
+      return 1
+    fi
     open "vnc://${vnc_host}:${vnc_port}" >/dev/null 2>&1 &
     return 0
   fi

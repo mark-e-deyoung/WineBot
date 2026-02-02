@@ -12,7 +12,7 @@ Checks performed (headless):
 - A window is present on `DISPLAY=:99`
 - Screenshot capture works (timestamped file under `/tmp/`)
 - The Wine prefix persists across containers
-- API unit tests for `api/server.py`
+- API unit tests for `api/server.py` and host-view helper tests
 - API integration checks for `/health` and `/health/*`
 - API integration checks for `/inspect/window` (list-only)
 - Screenshot metadata validation (PNG tEXt + JSON sidecar)

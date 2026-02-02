@@ -84,6 +84,18 @@ Auto-open noVNC or a VNC viewer (host helper):
 
 This forces interactive mode and opens a browser to noVNC with auto-connect. If a VNC password is set, it is passed via the URL to avoid prompts (consider the security tradeoff).
 
+Explicit example with password:
+
+`scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view novnc --novnc-password "winebot"`
+
+To avoid embedding the password in the URL:
+
+`scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view novnc --no-password-url`
+
+If you prefer a VNC client:
+
+`scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view vnc --vnc-password "winebot"`
+
 ## Take a screenshot (headless)
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`

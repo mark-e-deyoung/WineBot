@@ -310,7 +310,7 @@ log "Running API smoke tests (inside container)..."
 compose_exec headless winebot "
     set -e
     echo 'Running Unit Tests...'
-    python3 -m pytest tests/test_api.py
+    python3 -m pytest tests/test_api.py tests/test_auto_view.py
     
     echo 'Starting Server for Integration Check (Secured)...'
     export API_TOKEN='smoke-secret'

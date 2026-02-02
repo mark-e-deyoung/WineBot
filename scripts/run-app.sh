@@ -23,8 +23,10 @@ Options:
   --view [novnc|vnc|auto]      Auto-open viewer (forces --mode interactive, implies --detach).
   --novnc-url URL              Override noVNC URL (default: http://localhost:6080/vnc.html?autoconnect=1&resize=scale).
   --novnc-password PASS        noVNC password (optional; enables auto-connect without prompts).
+  --no-password-url            Do not embed the password in the URL.
   --vnc-host HOST              VNC host (default: localhost).
   --vnc-port PORT              VNC port (default: 5900).
+  --vnc-password PASS          VNC password (optional; used for non-interactive VNC viewers).
   --vnc-viewer CMD             Custom VNC viewer command (optional).
   --view-timeout SEC           Viewer wait timeout (default: 30).
   --detach, -d                 Run in the background.
@@ -64,8 +66,11 @@ view_mode=""
 novnc_url=""
 novnc_password=""
 novnc_password_set="0"
+no_password_url="0"
 vnc_host="${VNC_HOST:-localhost}"
 vnc_port="${VNC_PORT:-5900}"
+vnc_password=""
+vnc_password_set="0"
 view_timeout="30"
 vnc_viewer=""
 
@@ -144,12 +149,20 @@ while [ $# -gt 0 ]; do
       novnc_password_set="1"
       shift
       ;;
+    --no-password-url)
+      no_password_url="1"
+      ;;
     --vnc-host)
       vnc_host="${2:-}"
       shift
       ;;
     --vnc-port)
       vnc_port="${2:-}"
+      shift
+      ;;
+    --vnc-password)
+      vnc_password="${2-}"
+      vnc_password_set="1"
       shift
       ;;
     --vnc-viewer)
@@ -309,9 +322,24 @@ if [ -n "$view_mode" ]; then
       novnc_password="winebot"
     fi
   fi
+  if [ "$vnc_password_set" != "1" ]; then
+    if [ -n "${VNC_PASSWORD:-}" ]; then
+      vnc_password="${VNC_PASSWORD}"
+    elif [ -n "${NOVNC_PASSWORD:-}" ]; then
+      vnc_password="${NOVNC_PASSWORD}"
+    else
+      vnc_password="winebot"
+    fi
+  fi
   view_args=(--mode "$view_mode" --novnc-url "$novnc_url" --vnc-host "$vnc_host" --vnc-port "$vnc_port" --timeout "$view_timeout")
   if [ -n "$novnc_password" ]; then
     view_args+=(--novnc-password "$novnc_password")
+  fi
+  if [ "$no_password_url" = "1" ]; then
+    view_args+=(--no-password-url)
+  fi
+  if [ -n "$vnc_password" ]; then
+    view_args+=(--vnc-password "$vnc_password")
   fi
   if [ -n "$vnc_viewer" ]; then
     view_args+=(--viewer "$vnc_viewer")
