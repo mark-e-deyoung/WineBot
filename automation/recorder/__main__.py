@@ -17,6 +17,8 @@ from .subtitles import SubtitleGenerator
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("winebot-recorder")
+FFMPEG_PID_FILE = "ffmpeg.pid"
+STATE_FILE = "recorder.state"
 
 def get_iso_time():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -54,6 +56,53 @@ def load_events(session_dir: str):
                     pass
     return events
 
+def read_pid(path: str) -> Optional[int]:
+    try:
+        with open(path, "r") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+
+def write_state(session_dir: str, state: str):
+    try:
+        with open(os.path.join(session_dir, STATE_FILE), "w") as f:
+            f.write(state)
+    except Exception:
+        pass
+
+def signal_ffmpeg(session_dir: str, sig: int, action: str):
+    pid_path = os.path.join(session_dir, FFMPEG_PID_FILE)
+    pid = read_pid(pid_path)
+    if not pid:
+        logger.error(f"No ffmpeg PID file found at {pid_path}.")
+        sys.exit(1)
+    try:
+        os.kill(pid, sig)
+    except ProcessLookupError:
+        logger.error(f"ffmpeg process {pid} not found.")
+        sys.exit(1)
+
+    session_json = os.path.join(session_dir, "session.json")
+    if os.path.exists(session_json):
+        try:
+            with open(session_json, "r") as f:
+                manifest = json.load(f)
+            start_time_epoch = manifest["start_time_epoch"]
+            now_epoch = time.time() * 1000
+            t_rel = int(now_epoch - start_time_epoch)
+            append_event(session_dir, Event(
+                session_id=manifest["session_id"],
+                t_rel_ms=t_rel,
+                t_epoch_ms=int(now_epoch),
+                level="INFO",
+                kind=f"recorder_{action}",
+                message=f"Recorder {action}"
+            ))
+        except Exception:
+            pass
+
+    write_state(session_dir, "paused" if action == "pause" else "recording")
+
 def cmd_start(args):
     session_dir = args.session_dir
     os.makedirs(session_dir, exist_ok=True)
@@ -85,6 +134,10 @@ def cmd_start(args):
     output_file = os.path.join(session_dir, "video.mkv")
     recorder = FFMpegRecorder(args.display, args.resolution, args.fps, output_file)
     recorder.start()
+    if recorder.process and recorder.process.pid:
+        with open(os.path.join(session_dir, FFMPEG_PID_FILE), "w") as f:
+            f.write(str(recorder.process.pid))
+    write_state(session_dir, "recording")
     
     # Log start event
     append_event(session_dir, Event(
@@ -152,6 +205,12 @@ def cmd_start(args):
         # Remove PID file
         if os.path.exists(pid_file):
             os.remove(pid_file)
+        ffmpeg_pid_path = os.path.join(session_dir, FFMPEG_PID_FILE)
+        if os.path.exists(ffmpeg_pid_path):
+            os.remove(ffmpeg_pid_path)
+        state_path = os.path.join(session_dir, STATE_FILE)
+        if os.path.exists(state_path):
+            os.remove(state_path)
             
         sys.exit(0)
 
@@ -237,6 +296,12 @@ def cmd_annotate(args):
     
     append_event(session_dir, event)
 
+def cmd_pause(args):
+    signal_ffmpeg(args.session_dir, signal.SIGSTOP, "pause")
+
+def cmd_resume(args):
+    signal_ffmpeg(args.session_dir, signal.SIGCONT, "resume")
+
 def main():
     parser = argparse.ArgumentParser(prog="winebot_recorder")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -261,6 +326,14 @@ def main():
     p_ann.add_argument("--style", help="JSON style string")
     p_ann.add_argument("--source", help="Source tool name")
 
+    # Pause
+    p_pause = subparsers.add_parser("pause")
+    p_pause.add_argument("--session-dir", required=True)
+
+    # Resume
+    p_resume = subparsers.add_parser("resume")
+    p_resume.add_argument("--session-dir", required=True)
+
     args = parser.parse_args()
     
     if args.command == "start":
@@ -269,6 +342,10 @@ def main():
         cmd_stop(args)
     elif args.command == "annotate":
         cmd_annotate(args)
+    elif args.command == "pause":
+        cmd_pause(args)
+    elif args.command == "resume":
+        cmd_resume(args)
 
 if __name__ == "__main__":
     main()

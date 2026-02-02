@@ -31,6 +31,7 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 | GET | `/health/tools` | Tool availability |
 | GET | `/health/storage` | Storage stats |
 | GET | `/health/recording` | Recorder status |
+| GET | `/ui` | noVNC + API dashboard UI |
 | GET | `/windows` | List visible windows |
 | GET | `/windows/active` | Active window ID |
 | GET | `/windows/search` | Search windows by name |
@@ -39,6 +40,10 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 | GET | `/apps` | List installed apps |
 | POST | `/apps/run` | Run a Windows app |
 | GET | `/screenshot` | Capture screenshot (metadata sidecar + header) |
+| POST | `/recording/start` | Start recording session |
+| POST | `/recording/pause` | Pause recording session |
+| POST | `/recording/resume` | Resume recording session |
+| POST | `/recording/stop` | Stop recording session |
 | POST | `/run/ahk` | Run AutoHotkey script |
 | POST | `/run/autoit` | Run AutoIt script |
 | POST | `/run/python` | Run Windows Python |
@@ -71,6 +76,11 @@ Disk space and writeability for `/wineprefix`, `/artifacts`, and `/tmp`.
 
 #### `GET /health/recording`
 Recorder status and current session info (if any).
+
+### Dashboard
+
+#### `GET /ui`
+Serve the built‑in dashboard (noVNC + API controls). If `API_TOKEN` is set, enter it in the UI to authenticate API requests.
 
 #### `GET /windows`
 List currently visible windows.
@@ -110,6 +120,32 @@ Capture a screenshot of the desktop or a specific window.
 - **Response:** PNG image file.
   - **Headers:** `X-Request-Id` (unique request ID)
   - **Sidecar:** A JSON file is written alongside the PNG (`<file>.png.json`) containing metadata.
+
+#### `POST /recording/start`
+Start a recording session.
+- **Body (optional):**
+  ```json
+  {
+    "session_label": "smoke",
+    "session_root": "/artifacts/sessions",
+    "display": ":99",
+    "resolution": "1920x1080",
+    "fps": 30
+  }
+  ```
+- **Response:** `{"status":"started","session_id":"...","session_dir":"..."}`
+
+#### `POST /recording/pause`
+Pause the active recording session.
+- **Response:** `{"status":"paused","session_dir":"..."}`
+
+#### `POST /recording/resume`
+Resume the active recording session.
+- **Response:** `{"status":"resumed","session_dir":"..."}`
+
+#### `POST /recording/stop`
+Stop the active recording session.
+- **Response:** `{"status":"stopped","session_dir":"..."}`
 
 ### Control
 

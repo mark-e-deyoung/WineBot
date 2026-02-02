@@ -13,12 +13,15 @@ import shutil
 import platform
 import uuid
 import json
+import re
 
 app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot")
 START_TIME = time.time()
 UI_DIR = os.path.join(os.path.dirname(__file__), "ui")
 UI_INDEX = os.path.join(UI_DIR, "index.html")
 NOVNC_CORE_DIR = "/usr/share/novnc/core"
+SESSION_FILE = "/tmp/winebot_current_session"
+DEFAULT_SESSION_ROOT = "/artifacts/sessions"
 
 if os.path.isdir(NOVNC_CORE_DIR):
     app.mount("/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core")
@@ -91,6 +94,13 @@ class InspectWindowModel(BaseModel):
 class FocusModel(BaseModel):
     window_id: str
 
+class RecordingStartModel(BaseModel):
+    session_label: Optional[str] = None
+    session_root: Optional[str] = None
+    display: Optional[str] = None
+    resolution: Optional[str] = None
+    fps: Optional[int] = 30
+
 # Helpers
 def run_command(cmd: List[str]):
     try:
@@ -140,6 +150,73 @@ def meminfo_summary() -> Dict[str, Any]:
     except Exception:
         pass
     return data
+
+def parse_resolution(screen: str) -> str:
+    if not screen:
+        return "1920x1080"
+    parts = screen.split("x")
+    if len(parts) >= 2:
+        return f"{parts[0]}x{parts[1]}"
+    return screen
+
+def read_session_dir() -> Optional[str]:
+    if not os.path.exists(SESSION_FILE):
+        return None
+    try:
+        with open(SESSION_FILE, "r") as f:
+            value = f.read().strip()
+        return value or None
+    except Exception:
+        return None
+
+def write_session_dir(path: str) -> None:
+    with open(SESSION_FILE, "w") as f:
+        f.write(path)
+
+def read_pid(path: str) -> Optional[int]:
+    try:
+        with open(path, "r") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+
+def pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+def recorder_pid(session_dir: str) -> Optional[int]:
+    return read_pid(os.path.join(session_dir, "recorder.pid"))
+
+def recorder_running(session_dir: Optional[str]) -> bool:
+    if not session_dir:
+        return False
+    pid = recorder_pid(session_dir)
+    return pid is not None and pid_running(pid)
+
+def recorder_state(session_dir: Optional[str]) -> Optional[str]:
+    if not session_dir:
+        return None
+    state_file = os.path.join(session_dir, "recorder.state")
+    try:
+        with open(state_file, "r") as f:
+            return f.read().strip() or None
+    except Exception:
+        return None
+
+def generate_session_id(label: Optional[str]) -> str:
+    ts = int(time.time())
+    rand = uuid.uuid4().hex[:6]
+    session_id = f"session-{ts}-{rand}"
+    if label:
+        safe = re.sub(r"[^a-zA-Z0-9._-]+", "-", label).strip("-")
+        if safe:
+            session_id = f"{session_id}-{safe}"
+    return session_id
 
 @app.get("/health")
 def health_check():
@@ -262,14 +339,7 @@ def health_storage():
 @app.get("/health/recording")
 def health_recording():
     """Recorder status and current session."""
-    session_file = "/tmp/winebot_current_session"
-    session_dir = None
-    if os.path.exists(session_file):
-        try:
-            with open(session_file, "r") as f:
-                session_dir = f.read().strip()
-        except Exception:
-            session_dir = None
+    session_dir = read_session_dir()
     recorder = safe_command(["pgrep", "-f", "automation.recorder start"])
     return {
         "enabled": os.getenv("WINEBOT_RECORD", "0") == "1",
@@ -277,6 +347,7 @@ def health_recording():
         "session_dir_exists": os.path.isdir(session_dir) if session_dir else False,
         "recorder_running": recorder.get("ok", False),
         "recorder_pids": recorder.get("stdout").splitlines() if recorder.get("ok") and recorder.get("stdout") else [],
+        "state": recorder_state(session_dir),
     }
 
 @app.get("/ui")
@@ -445,6 +516,96 @@ def get_screenshot(window_id: str = "root", delay: int = 0, label: Optional[str]
         raise HTTPException(status_code=500, detail="Screenshot failed to generate")
 
     return FileResponse(filepath, media_type="image/png", headers={"X-Request-Id": request_id})
+
+@app.post("/recording/start")
+def start_recording(data: RecordingStartModel):
+    """Start a recording session."""
+    current_session = read_session_dir()
+    if recorder_running(current_session):
+        raise HTTPException(status_code=409, detail=f"Recorder already running: {current_session}")
+
+    session_root = data.session_root or os.getenv("WINEBOT_SESSION_ROOT", DEFAULT_SESSION_ROOT)
+    os.makedirs(session_root, exist_ok=True)
+    session_id = generate_session_id(data.session_label)
+    session_dir = os.path.join(session_root, session_id)
+    os.makedirs(session_dir, exist_ok=True)
+    write_session_dir(session_dir)
+
+    display = data.display or os.getenv("DISPLAY", ":99")
+    screen = data.resolution or os.getenv("SCREEN", "1920x1080")
+    resolution = parse_resolution(screen)
+    fps = data.fps or 30
+
+    cmd = [
+        "python3", "-m", "automation.recorder", "start",
+        "--session-dir", session_dir,
+        "--display", display,
+        "--resolution", resolution,
+        "--fps", str(fps),
+    ]
+    subprocess.Popen(cmd)
+
+    pid = None
+    pid_file = os.path.join(session_dir, "recorder.pid")
+    for _ in range(10):
+        pid = read_pid(pid_file)
+        if pid:
+            break
+        time.sleep(0.1)
+
+    return {
+        "status": "started",
+        "session_id": session_id,
+        "session_dir": session_dir,
+        "display": display,
+        "resolution": resolution,
+        "fps": fps,
+        "recorder_pid": pid,
+    }
+
+@app.post("/recording/stop")
+def stop_recording():
+    """Stop the active recording session."""
+    session_dir = read_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=409, detail="No active recording session.")
+
+    cmd = ["python3", "-m", "automation.recorder", "stop", "--session-dir", session_dir]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=(result.stderr or "Failed to stop recorder"))
+
+    if not recorder_running(session_dir):
+        try:
+            os.remove(SESSION_FILE)
+        except Exception:
+            pass
+
+    return {"status": "stopped", "session_dir": session_dir}
+
+@app.post("/recording/pause")
+def pause_recording():
+    """Pause the active recording session."""
+    session_dir = read_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=409, detail="No active recording session.")
+    cmd = ["python3", "-m", "automation.recorder", "pause", "--session-dir", session_dir]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=(result.stderr or "Failed to pause recorder"))
+    return {"status": "paused", "session_dir": session_dir}
+
+@app.post("/recording/resume")
+def resume_recording():
+    """Resume the active recording session."""
+    session_dir = read_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=409, detail="No active recording session.")
+    cmd = ["python3", "-m", "automation.recorder", "resume", "--session-dir", session_dir]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=(result.stderr or "Failed to resume recorder"))
+    return {"status": "resumed", "session_dir": session_dir}
 
 @app.post("/input/mouse/click")
 def click_at(data: ClickModel):

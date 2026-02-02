@@ -3,6 +3,7 @@ from api.server import app
 from unittest.mock import patch, MagicMock
 import os
 import pytest
+from pathlib import Path
 
 client = TestClient(app)
 
@@ -151,6 +152,50 @@ def test_ui_dashboard_no_token_required():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         response = client.get("/ui")
         assert response.status_code == 200
+
+def test_recording_start_creates_session(tmp_path, auth_headers):
+    session_file = tmp_path / "session_file"
+    with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_SESSION_ROOT": str(tmp_path), "SCREEN": "800x600x24"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            with patch("subprocess.Popen") as mock_popen:
+                response = client.post("/recording/start", headers=auth_headers, json={})
+                assert response.status_code == 200
+                payload = response.json()
+                assert "session_dir" in payload
+                assert Path(session_file).exists()
+                assert Path(session_file).read_text().strip() == payload["session_dir"]
+                mock_popen.assert_called_once()
+
+def test_recording_stop_clears_session(tmp_path, auth_headers):
+    session_dir = tmp_path / "session-1"
+    session_dir.mkdir()
+    (session_dir / "recorder.pid").write_text("123")
+    session_file = tmp_path / "session_file"
+    session_file.write_text(str(session_dir))
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            with patch("api.server.pid_running", return_value=False):
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 0
+                    mock_run.return_value.stderr = ""
+                    response = client.post("/recording/stop", headers=auth_headers)
+                    assert response.status_code == 200
+                    assert not session_file.exists()
+
+def test_recording_pause_resume(tmp_path, auth_headers):
+    session_dir = tmp_path / "session-2"
+    session_dir.mkdir()
+    session_file = tmp_path / "session_file"
+    session_file.write_text(str(session_dir))
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stderr = ""
+                response = client.post("/recording/pause", headers=auth_headers)
+                assert response.status_code == 200
+                response = client.post("/recording/resume", headers=auth_headers)
+                assert response.status_code == 200
 
 @patch("subprocess.run")
 def test_run_app_valid_path(mock_run, auth_headers):
