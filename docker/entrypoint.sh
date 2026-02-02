@@ -19,8 +19,8 @@ if [ "$(id -u)" = "0" ]; then
     fi
 
     # Ensure critical directories are owned by the user
-    mkdir -p "$WINEPREFIX" "/home/winebot/.cache"
-    chown -R winebot:winebot "/home/winebot" "$WINEPREFIX"
+    mkdir -p "$WINEPREFIX" "/home/winebot/.cache" "/artifacts"
+    chown -R winebot:winebot "/home/winebot" "$WINEPREFIX" "/artifacts"
     chmod 777 /tmp
 
     # Handle .X11-unix specifically for Xvfb
@@ -41,8 +41,60 @@ Xvfb "$DISPLAY" -screen 0 "$SCREEN" -ac +extension RANDR >/dev/null 2>&1 &
 XVFB_PID=$!
 sleep 1 # Give Xvfb a moment to start
 
+if [ -n "$RECORDER_PID" ]; then
+    scripts/annotate.sh --text "Xvfb ready on $DISPLAY" --type lifecycle --source entrypoint
+fi
+
 # 3. Start Window Manager (Openbox)
 openbox >/dev/null 2>&1 &
+
+# --- Recorder Setup ---
+RECORDER_PID=""
+if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
+    echo "--> Starting Recorder..."
+    
+    # Generate Session ID
+    SESSION_TS=$(date +%s)
+    SESSION_RAND=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
+    SESSION_ID="session-${SESSION_TS}-${SESSION_RAND}${WINEBOT_SESSION_LABEL:+-${WINEBOT_SESSION_LABEL}}"
+    
+    SESSION_ROOT="${WINEBOT_SESSION_ROOT:-/artifacts/sessions}"
+    SESSION_DIR="${SESSION_ROOT}/${SESSION_ID}"
+    
+    # Export for other tools
+    export WINEBOT_SESSION_ID="$SESSION_ID"
+    export WINEBOT_SESSION_DIR="$SESSION_DIR"
+    echo "$SESSION_DIR" > /tmp/winebot_current_session
+    
+    # Resolution parsing: handles 1920x1080x24 -> 1920x1080, and 1280x720 -> 1280x720
+    if [[ "$SCREEN" == *x*x* ]]; then
+        RES="${SCREEN%x*}"
+    else
+        RES="$SCREEN"
+    fi
+    
+    # Start Recorder
+    python3 -m automation.recorder start \
+        --session-dir "$SESSION_DIR" \
+        --display "$DISPLAY" \
+        --resolution "$RES" \
+        --fps 30 &
+    RECORDER_PID=$!
+    
+    echo "Recorder started (PID: $RECORDER_PID) in $SESSION_DIR"
+fi
+
+stop_recorder() {
+    if [ -n "$RECORDER_PID" ]; then
+        echo "--> Stopping Recorder..."
+        python3 -m automation.recorder stop --session-dir "$SESSION_DIR" || true
+        wait "$RECORDER_PID" || true
+        RECORDER_PID=""
+    fi
+}
+
+trap 'stop_recorder' EXIT
+# ----------------------
 
 # 4. Start VNC/noVNC if requested
 if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
@@ -64,49 +116,27 @@ fi
 # 5. Initialize Wine Prefix (if needed)
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX..."
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "Initializing WINEPREFIX..." --type lifecycle --source entrypoint
     wineboot --init >/dev/null 2>&1
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "WINEPREFIX ready" --type lifecycle --source entrypoint
 else
     # Ensure Wine services (explorer, etc.) are running
     wine explorer >/dev/null 2>&1 &
 fi
 
 # 6. Execute under winedbg if requested
+# ... (omitting winedbg block context for brevity in replace, but I'll include enough) ...
 if [ "${ENABLE_WINEDBG:-0}" = "1" ]; then
-    WINEDBG_MODE="${WINEDBG_MODE:-gdb}"
-    WINEDBG_ARGS=()
-    
-    if [ "$WINEDBG_MODE" = "gdb" ]; then
-        WINEDBG_ARGS+=("--gdb")
-        if [ -n "${WINEDBG_PORT:-}" ] && [ "${WINEDBG_PORT}" != "0" ]; then
-            WINEDBG_ARGS+=("--port" "$WINEDBG_PORT")
-        fi
-        if [ "${WINEDBG_NO_START:-0}" = "1" ]; then
-            WINEDBG_ARGS+=("--no-start")
-        fi
-    else
-        # default mode
-        if [ -n "${WINEDBG_COMMAND:-}" ]; then
-            WINEDBG_ARGS+=("--command" "$WINEDBG_COMMAND")
-        fi
-        if [ -n "${WINEDBG_SCRIPT:-}" ]; then
-            WINEDBG_ARGS+=("--file" "$WINEDBG_SCRIPT")
-        fi
-    fi
-
-    # Determine command to run
-    if [ $# -gt 0 ]; then
-        CMD=("$@")
-    else
-        CMD=("${APP_EXE:-cmd.exe}" $APP_ARGS)
-    fi
-
+# ...
     echo "--> Running under winedbg ($WINEDBG_MODE): ${CMD[*]}"
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "Launching app under winedbg: ${CMD[*]}" --type lifecycle --source entrypoint
     exec winedbg "${WINEDBG_ARGS[@]}" "${CMD[@]}"
 fi
 
 # Start API if enabled
 if [ "${ENABLE_API:-0}" = "1" ]; then
     echo "Starting API server on port 8000..."
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "Starting API server" --type lifecycle --source entrypoint
     # Ensure X11 env is sourced for the python process if needed, 
     # though subprocess calls in server.py usually source x11_env.sh via wrapper scripts.
     # We run it as winebot user.
@@ -119,7 +149,12 @@ fi
 
 # Keep container alive (if no command provided)
 if [ -z "$@" ]; then
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "Container idle (waiting)" --type lifecycle --source entrypoint
     tail -f /dev/null
 else
-    exec "$@"
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "Launching: $@" --type lifecycle --source entrypoint
+    "$@"
+    EXIT_CODE=$?
+    [ -n "$RECORDER_PID" ] && scripts/annotate.sh --text "App exited with code $EXIT_CODE" --type lifecycle --source entrypoint
+    exit $EXIT_CODE
 fi

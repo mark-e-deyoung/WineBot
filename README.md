@@ -94,7 +94,17 @@ Then connect from the host:
 
 `gdb -ex "target remote localhost:2345"`
 
-See `docs/debugging.md` for scripted commands and additional tooling.
+See [docs/debugging.md](docs/debugging.md) for scripted commands and additional tooling.
+
+## Recording & Annotations
+
+WineBot can record your session to video with automatically generated subtitles and positional overlays.
+
+- **Enable recording:** Pass `--record` to `scripts/run-app.sh`.
+- **Add annotations:** Use `scripts/annotate.sh` inside the container to add text or positional overlays during runtime.
+- **Toggle visibility:** Subtitles and overlays are stored as separate tracks in the MKV file and can be toggled ON/OFF in players like VLC.
+
+See [docs/recording.md](docs/recording.md) for details.
 
 ## Headless Tools & Helpers
 

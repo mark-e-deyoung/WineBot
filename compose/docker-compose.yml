@@ -33,6 +33,7 @@ x-winebot-base: &winebot_base
     - wineprefix:/wineprefix
     - ../apps:/apps
     - ../automation/assets:/automation/assets
+    - ../artifacts:/artifacts
 
 services:
   winebot:
