@@ -140,6 +140,18 @@ def test_health_recording(mock_exists, mock_safe_command, auth_headers):
         payload = response.json()
         assert payload["enabled"] in (True, False)
 
+def test_ui_dashboard_served(auth_headers):
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/ui", headers=auth_headers)
+        assert response.status_code == 200
+        assert "id=\"vnc-container\"" in response.text
+        assert "id=\"control-panel\"" in response.text
+
+def test_ui_dashboard_no_token_required():
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/ui")
+        assert response.status_code == 200
+
 @patch("subprocess.run")
 def test_run_app_valid_path(mock_run, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):

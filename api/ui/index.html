@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/ui/" />
+  <title>WineBot Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1114;
+      --panel: #121a1f;
+      --panel-2: #18232b;
+      --accent: #4dd0a1;
+      --accent-2: #5ec4ff;
+      --text: #e6f0f4;
+      --muted: #9fb3bf;
+      --danger: #ff6b6b;
+      --warn: #f7c96f;
+      --ok: #4dd0a1;
+      --border: #22303a;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Sora", "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 700px at 10% 10%, #142028 0%, #0b1114 65%);
+      color: var(--text);
+    }
+
+    #app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    #vnc-container {
+      flex: 0 0 75%;
+      min-width: 0;
+      position: relative;
+      background: linear-gradient(135deg, #0b1114 0%, #0f1a20 60%, #0c1419 100%);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #vnc-container canvas {
+      outline: none;
+    }
+
+    .vnc-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(18, 26, 31, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px var(--shadow);
+      backdrop-filter: blur(8px);
+      z-index: 5;
+    }
+
+    .vnc-title {
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    #control-panel {
+      flex: 0 0 25%;
+      min-width: 280px;
+      padding: 24px 20px;
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .panel-header h1 {
+      font-size: 1.4rem;
+      margin: 0 0 6px;
+    }
+
+    .panel-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .panel-section {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 8px 18px var(--shadow);
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0d1418;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 600;
+      background: var(--accent);
+      color: #08110e;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(77, 208, 161, 0.25);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.warn {
+      background: var(--warn);
+      color: #1c1200;
+    }
+
+    button.danger {
+      background: var(--danger);
+      color: #1f0707;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #0f171d;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .badge.ok {
+      border-color: rgba(77, 208, 161, 0.4);
+      color: var(--ok);
+    }
+
+    .badge.warn {
+      border-color: rgba(247, 201, 111, 0.4);
+      color: var(--warn);
+    }
+
+    .badge.error {
+      border-color: rgba(255, 107, 107, 0.4);
+      color: var(--danger);
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .status-text {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      #app {
+        flex-direction: column;
+      }
+
+      #vnc-container,
+      #control-panel {
+        flex: 0 0 auto;
+        width: 100%;
+      }
+
+      #vnc-container {
+        min-height: 55vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <section id="vnc-container">
+      <div class="vnc-overlay">
+        <div class="vnc-title">Live Session</div>
+        <div id="badge-vnc" class="badge">connecting...</div>
+      </div>
+    </section>
+
+    <aside id="control-panel">
+      <div class="panel-header">
+        <h1>WineBot Dashboard</h1>
+        <p>Control the session and check system health.</p>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">API Access</div>
+        <label for="api-token">API Token (optional)</label>
+        <input id="api-token" type="password" placeholder="X-API-Key" />
+        <div class="button-row" style="margin-top: 10px;">
+          <button id="save-token" class="secondary">Save Token</button>
+          <button id="clear-token" class="secondary">Clear</button>
+        </div>
+        <div class="hint">Stored in localStorage for this browser.</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Quick Actions</div>
+        <div class="button-row">
+          <button id="btn-screenshot">Take Screenshot</button>
+        </div>
+        <div id="screenshot-status" class="status-text"></div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Recording</div>
+        <div class="button-row">
+          <button id="btn-record-start">Start</button>
+          <button id="btn-record-pause" class="warn">Pause</button>
+          <button id="btn-record-resume" class="secondary">Resume</button>
+          <button id="btn-record-stop" class="danger">Stop</button>
+        </div>
+        <div id="recording-status" class="status-text"></div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Health</div>
+        <div class="button-row" style="flex-direction: column; align-items: flex-start;">
+          <span id="badge-health" class="badge">/health: pending</span>
+          <span id="badge-x11" class="badge">/health/x11: pending</span>
+          <span id="badge-windows" class="badge">/health/windows: pending</span>
+          <span id="badge-recording" class="badge">/health/recording: pending</span>
+          <span id="badge-storage" class="badge">/health/storage: pending</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module">
+    import RFB from "./core/rfb.js";
+
+    const vncContainer = document.getElementById("vnc-container");
+    const badgeVnc = document.getElementById("badge-vnc");
+    const badgeHealth = document.getElementById("badge-health");
+    const badgeX11 = document.getElementById("badge-x11");
+    const badgeWindows = document.getElementById("badge-windows");
+    const badgeRecording = document.getElementById("badge-recording");
+    const badgeStorage = document.getElementById("badge-storage");
+
+    const tokenInput = document.getElementById("api-token");
+    const saveTokenBtn = document.getElementById("save-token");
+    const clearTokenBtn = document.getElementById("clear-token");
+
+    const screenshotBtn = document.getElementById("btn-screenshot");
+    const screenshotStatus = document.getElementById("screenshot-status");
+
+    const recordStartBtn = document.getElementById("btn-record-start");
+    const recordPauseBtn = document.getElementById("btn-record-pause");
+    const recordResumeBtn = document.getElementById("btn-record-resume");
+    const recordStopBtn = document.getElementById("btn-record-stop");
+    const recordStatus = document.getElementById("recording-status");
+
+    const API_TOKEN_KEY = "winebot_api_token";
+
+    function getToken() {
+      return localStorage.getItem(API_TOKEN_KEY) || "";
+    }
+
+    function setToken(value) {
+      if (value) {
+        localStorage.setItem(API_TOKEN_KEY, value);
+      } else {
+        localStorage.removeItem(API_TOKEN_KEY);
+      }
+    }
+
+    function setBadge(element, text, state) {
+      element.textContent = text;
+      element.classList.remove("ok", "warn", "error");
+      if (state) {
+        element.classList.add(state);
+      }
+    }
+
+    async function apiFetch(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const token = getToken();
+      if (token) {
+        headers.set("X-API-Key", token);
+      }
+      return fetch(path, { ...options, headers });
+    }
+
+    async function updateDashboard() {
+      try {
+        const [health, x11, windows, recording, storage] = await Promise.all([
+          apiFetch("/health"),
+          apiFetch("/health/x11"),
+          apiFetch("/health/windows"),
+          apiFetch("/health/recording"),
+          apiFetch("/health/storage")
+        ]);
+
+        if (health.ok) {
+          const data = await health.json();
+          setBadge(badgeHealth, `/health: ${data.status}`, data.status === "ok" ? "ok" : "warn");
+        } else {
+          setBadge(badgeHealth, `/health: ${health.status}`, "error");
+        }
+
+        if (x11.ok) {
+          const data = await x11.json();
+          setBadge(badgeX11, `/health/x11: ${data.connected ? "connected" : "down"}`, data.connected ? "ok" : "error");
+        } else {
+          setBadge(badgeX11, `/health/x11: ${x11.status}`, "error");
+        }
+
+        if (windows.ok) {
+          const data = await windows.json();
+          setBadge(badgeWindows, `/health/windows: ${data.count} windows`, data.count > 0 ? "ok" : "warn");
+        } else {
+          setBadge(badgeWindows, `/health/windows: ${windows.status}`, "error");
+        }
+
+        if (recording.ok) {
+          const data = await recording.json();
+          const state = data.recorder_running ? "recording" : "idle";
+          setBadge(badgeRecording, `/health/recording: ${state}`, data.recorder_running ? "ok" : "warn");
+          const enabled = data.enabled === true;
+          recordStartBtn.disabled = !enabled;
+          recordPauseBtn.disabled = !enabled;
+          recordResumeBtn.disabled = !enabled;
+          recordStopBtn.disabled = !enabled;
+        } else {
+          setBadge(badgeRecording, `/health/recording: ${recording.status}`, "error");
+          recordStartBtn.disabled = true;
+          recordPauseBtn.disabled = true;
+          recordResumeBtn.disabled = true;
+          recordStopBtn.disabled = true;
+        }
+
+        if (storage.ok) {
+          const data = await storage.json();
+          setBadge(badgeStorage, `/health/storage: ${data.ok ? "ok" : "check"}`, data.ok ? "ok" : "warn");
+        } else {
+          setBadge(badgeStorage, `/health/storage: ${storage.status}`, "error");
+        }
+      } catch (err) {
+        setBadge(badgeHealth, "/health: error", "error");
+      }
+    }
+
+    async function takeScreenshot() {
+      screenshotStatus.textContent = "Capturing screenshot...";
+      try {
+        const response = await apiFetch("/screenshot");
+        if (!response.ok) {
+          throw new Error(`Screenshot failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `winebot_${Date.now()}.png`;
+        link.textContent = "Download screenshot";
+        link.style.color = "var(--accent-2)";
+        screenshotStatus.textContent = "";
+        screenshotStatus.appendChild(link);
+      } catch (err) {
+        screenshotStatus.textContent = `Screenshot error: ${err.message}`;
+      }
+    }
+
+    async function postRecordingAction(action) {
+      recordStatus.textContent = `${action}...`;
+      try {
+        const response = await apiFetch(`/recording/${action}`, { method: "POST" });
+        if (!response.ok) {
+          throw new Error(`Recording ${action} failed: ${response.status}`);
+        }
+        const data = await response.json();
+        recordStatus.textContent = data.status || `Recording ${action} ok`;
+      } catch (err) {
+        recordStatus.textContent = `Recording error: ${err.message}`;
+      }
+    }
+
+    function initTokenControls() {
+      tokenInput.value = getToken();
+      saveTokenBtn.addEventListener("click", () => {
+        setToken(tokenInput.value.trim());
+        updateDashboard();
+      });
+      clearTokenBtn.addEventListener("click", () => {
+        tokenInput.value = "";
+        setToken("");
+        updateDashboard();
+      });
+    }
+
+    function initActions() {
+      screenshotBtn.addEventListener("click", takeScreenshot);
+      recordStartBtn.addEventListener("click", () => postRecordingAction("start"));
+      recordPauseBtn.addEventListener("click", () => postRecordingAction("pause"));
+      recordResumeBtn.addEventListener("click", () => postRecordingAction("resume"));
+      recordStopBtn.addEventListener("click", () => postRecordingAction("stop"));
+    }
+
+    function initVnc() {
+      badgeVnc.textContent = "connecting...";
+      const rfb = new RFB(vncContainer, "ws://localhost:6080");
+      rfb.addEventListener("connect", () => {
+        setBadge(badgeVnc, "connected", "ok");
+      });
+      rfb.addEventListener("disconnect", () => {
+        setBadge(badgeVnc, "disconnected", "error");
+      });
+      rfb.addEventListener("credentialsrequired", () => {
+        setBadge(badgeVnc, "password required", "warn");
+      });
+    }
+
+    initTokenControls();
+    initActions();
+    initVnc();
+
+    updateDashboard();
+    setInterval(updateDashboard, 5000);
+  </script>
+</body>
+</html>

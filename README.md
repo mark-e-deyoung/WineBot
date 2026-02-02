@@ -96,6 +96,10 @@ If you prefer a VNC client:
 
 `scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view vnc --vnc-password "winebot"`
 
+Dashboard (noVNC + API controls):
+
+`http://localhost:8000/ui` (enter `API_TOKEN` in the panel if configured)
+
 ## Take a screenshot (headless)
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`

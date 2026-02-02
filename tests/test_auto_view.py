@@ -2,6 +2,7 @@ import os
 import socket
 import subprocess
 import tempfile
+import time
 
 SCRIPT = os.path.join(os.path.dirname(__file__), "..", "scripts", "auto-view.sh")
 
@@ -11,6 +12,20 @@ def run_script(args, env=None):
     if env:
         env_vars.update(env)
     return subprocess.run([SCRIPT] + args, env=env_vars, capture_output=True, text=True)
+
+def read_file_with_wait(path, timeout=1.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+            if content:
+                return content
+        time.sleep(0.05)
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return ""
 
 
 def _run_with_stub(args):
@@ -46,10 +61,7 @@ def _run_with_stub(args):
         )
         server.close()
 
-        url = ""
-        if os.path.exists(url_out):
-            with open(url_out, "r", encoding="utf-8") as f:
-                url = f.read().strip()
+        url = read_file_with_wait(url_out)
         return result, url
 
 
@@ -93,10 +105,7 @@ def _run_with_vnc_stub(args):
         )
         server.close()
 
-        argv = ""
-        if os.path.exists(args_out):
-            with open(args_out, "r", encoding="utf-8") as f:
-                argv = f.read().strip()
+        argv = read_file_with_wait(args_out)
         return result, argv
 
 

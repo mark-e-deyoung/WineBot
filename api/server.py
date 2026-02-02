@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends, Request
 from fastapi.security import APIKeyHeader
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import subprocess
@@ -15,11 +16,19 @@ import json
 
 app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot")
 START_TIME = time.time()
+UI_DIR = os.path.join(os.path.dirname(__file__), "ui")
+UI_INDEX = os.path.join(UI_DIR, "index.html")
+NOVNC_CORE_DIR = "/usr/share/novnc/core"
+
+if os.path.isdir(NOVNC_CORE_DIR):
+    app.mount("/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core")
 
 # Security
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-async def verify_token(api_key: str = Security(api_key_header)):
+async def verify_token(request: Request, api_key: str = Security(api_key_header)):
+    if request.url.path.startswith("/ui"):
+        return api_key
     expected_token = os.getenv("API_TOKEN")
     if expected_token:
         if not api_key or api_key != expected_token:
@@ -269,6 +278,14 @@ def health_recording():
         "recorder_running": recorder.get("ok", False),
         "recorder_pids": recorder.get("stdout").splitlines() if recorder.get("ok") and recorder.get("stdout") else [],
     }
+
+@app.get("/ui")
+@app.get("/ui/")
+def dashboard():
+    """Serve the dashboard UI."""
+    if not os.path.exists(UI_INDEX):
+        raise HTTPException(status_code=404, detail="Dashboard not available")
+    return FileResponse(UI_INDEX, media_type="text/html")
 
 @app.get("/windows")
 def list_windows():
