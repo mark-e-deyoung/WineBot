@@ -10,7 +10,9 @@ x-winebot-env: &winebot_env
   WINEARCH: ${WINEARCH:-win64}
   RUN_AUTOMATION: ${RUN_AUTOMATION:-0}
   AUTOMATION_CMD: ${AUTOMATION_CMD:-}
+  API_TOKEN: ${API_TOKEN:-}
   ENABLE_WINEDBG: ${ENABLE_WINEDBG:-0}
+  ENABLE_API: ${ENABLE_API:-1}
   WINEDBG_MODE: ${WINEDBG_MODE:-}
   WINEDBG_PORT: ${WINEDBG_PORT:-}
   WINEDBG_NO_START: ${WINEDBG_NO_START:-}
@@ -43,6 +45,8 @@ services:
     environment:
       <<: *winebot_env
       MODE: headless
+    ports:
+      - "8000:8000"
 
   winebot-interactive:
     <<: *winebot_base
@@ -54,6 +58,7 @@ services:
       ENABLE_VNC: "1"
       VNC_PASSWORD: ${VNC_PASSWORD:-winebot}
     ports:
+      - "8000:8000"
       - "5900:5900"
       - "6080:6080"
       - "${WINEDBG_PORT:-2345}:${WINEDBG_PORT:-2345}"

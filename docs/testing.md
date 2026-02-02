@@ -1,17 +1,22 @@
 # Testing
 
-WineBot includes a simple smoke test to validate the display stack, Wine prefix, and optional VNC/noVNC services.
+WineBot includes a smoke test to validate the display stack, Wine prefix, core API endpoints, and optional VNC/noVNC services.
 
 ## Quick smoke test (headless)
 
 `scripts/smoke-test.sh`
 
-Checks performed:
+Checks performed (headless):
 
 - Xvfb and openbox are running
 - A window is present on `DISPLAY=:99`
-- Screenshot capture works (`/tmp/screenshot.png`)
+- Screenshot capture works (timestamped file under `/tmp/`)
 - The Wine prefix persists across containers
+- API unit tests for `api/server.py`
+- API integration checks for `/health` and `/health/*`
+- API integration checks for `/inspect/window` (list-only)
+- Screenshot metadata validation (PNG tEXt + JSON sidecar)
+- API integration check for `/run/winedbg` (default command)
 
 ## Full smoke test
 
@@ -44,4 +49,4 @@ By default the smoke test leaves services running. To stop them:
 
 `scripts/smoke-test.sh --cleanup`
 
-For CI, prefer `--full --cleanup`.
+For CI, prefer `--full --cleanup` and set `API_TOKEN` if security is enforced.

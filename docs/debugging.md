@@ -26,6 +26,15 @@ Notes:
 - `scripts/smoke-test.sh --include-debug-proxy` runs a gdb proxy attach check and verifies the target exe is running.
 - `gdb` may exit with code `137` in some container environments; treat it as valid if threads are printed.
 
+### API Control
+You can also launch apps under winedbg via the internal API:
+
+```bash
+curl -X POST http://localhost:8000/run/winedbg \
+  -H "Content-Type: application/json" \
+  -d '{"path":"/apps/MyApp.exe","mode":"gdb","port":2345,"no_start":true}'
+```
+
 ## Other Windows-side tools (run under Wine)
 
 These can be installed into the prefix or placed under `apps/`:
@@ -103,3 +112,12 @@ Run the installer inside the container (only needs to be done once per container
 /scripts/winspy.sh
 ```
 *Note: These run graphically. Use VNC/noVNC to interact with them.*
+
+### WinSpy-Style API Inspection
+For agent-driven automation, you can query control metadata via the API:
+
+```bash
+curl -X POST http://localhost:8000/inspect/window \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Untitled - Notepad","include_controls":true}'
+```

@@ -82,7 +82,7 @@ Change the default VNC password in `compose/docker-compose.yml`.
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`
 
-The image is saved to `/tmp/screenshot_YYYY-MM-DD_HH-MM-SS.png` inside the container. You can also specify a custom path or directory as an argument.
+The image is saved to `/tmp/screenshot_YYYY-MM-DD_HH-MM-SS.png` inside the container. A JSON sidecar with metadata is written next to it (`.png.json`). You can also specify a custom path or directory as an argument.
 
 ## Debug with winedbg
 
@@ -117,6 +117,10 @@ WineBot provides helpers to simplify headless interaction:
 - **Internal API:** HTTP API for programmatic control (see `docs/api.md`).
 
 See [docs/debugging.md](docs/debugging.md) for details.
+
+## Performance & Reliability
+
+Best practices and a low-resource compose override are documented in [docs/performance.md](docs/performance.md).
 
 ## Run the sample CV automation
 

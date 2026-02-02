@@ -1,0 +1,12 @@
+services:
+  winebot:
+    environment:
+      SCREEN: 1280x720x24
+      ENABLE_VNC: "0"
+      ENABLE_WINEDBG: "0"
+      WINEBOT_RECORD: "0"
+  winebot-interactive:
+    environment:
+      SCREEN: 1280x720x24
+      ENABLE_WINEDBG: "0"
+      WINEBOT_RECORD: "0"

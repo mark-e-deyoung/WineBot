@@ -20,11 +20,57 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 
 ## Endpoints
 
+### Quick Reference
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | High‑level health summary |
+| GET | `/health/system` | System stats |
+| GET | `/health/x11` | X11 status |
+| GET | `/health/windows` | X11 window list |
+| GET | `/health/wine` | Wine prefix details |
+| GET | `/health/tools` | Tool availability |
+| GET | `/health/storage` | Storage stats |
+| GET | `/health/recording` | Recorder status |
+| GET | `/windows` | List visible windows |
+| GET | `/windows/active` | Active window ID |
+| GET | `/windows/search` | Search windows by name |
+| POST | `/windows/focus` | Focus a window |
+| POST | `/input/mouse/click` | Click at coordinates |
+| GET | `/apps` | List installed apps |
+| POST | `/apps/run` | Run a Windows app |
+| GET | `/screenshot` | Capture screenshot (metadata sidecar + header) |
+| POST | `/run/ahk` | Run AutoHotkey script |
+| POST | `/run/autoit` | Run AutoIt script |
+| POST | `/run/python` | Run Windows Python |
+| POST | `/inspect/window` | WinSpy‑style inspection |
+| POST | `/run/winedbg` | Launch app under winedbg |
+
 ### Health & State
 
 #### `GET /health`
-Checks if X11 and Wine environment are responsive.
-- **Response:** `{"status": "ok", "x11": "connected"}`
+High-level health summary (X11, Wine prefix, tools, storage).
+- **Response:** `{"status": "ok", "x11": "connected", "wineprefix": "ready", "tools_ok": true, ...}`
+
+#### `GET /health/system`
+System stats (uptime, load average, CPU count, memory).
+
+#### `GET /health/x11`
+X11/display status and active window.
+
+#### `GET /health/windows`
+Window list and active window details.
+
+#### `GET /health/wine`
+Wine prefix status and `wine --version`.
+
+#### `GET /health/tools`
+Presence/paths of key tools (`winedbg`, `gdb`, `ffmpeg`, etc).
+
+#### `GET /health/storage`
+Disk space and writeability for `/wineprefix`, `/artifacts`, and `/tmp`.
+
+#### `GET /health/recording`
+Recorder status and current session info (if any).
 
 #### `GET /windows`
 List currently visible windows.
@@ -60,7 +106,10 @@ Capture a screenshot of the desktop or a specific window.
   - `window_id` (optional): Window ID (default: "root").
   - `delay` (optional): Seconds to wait before capture (default: 0).
   - `label` (optional): Text to annotate at the bottom of the image.
+  - `tag` (optional): User tag stored in screenshot metadata.
 - **Response:** PNG image file.
+  - **Headers:** `X-Request-Id` (unique request ID)
+  - **Sidecar:** A JSON file is written alongside the PNG (`<file>.png.json`) containing metadata.
 
 ### Control
 
@@ -115,6 +164,50 @@ Run a Python script using the embedded Windows Python environment (`winpy`).
 - **Body:** `{"script": "import sys; print(sys.version)"}`
 - **Response:** `{"status": "success", "stdout": "...", "stderr": "..."}`
 
+#### `POST /inspect/window`
+Inspect a Windows window and its controls (WinSpy-style) via AutoIt.
+- **Body (inspect by title or handle):**
+  ```json
+  {
+    "title": "Untitled - Notepad",
+    "text": "",
+    "handle": "",
+    "include_controls": true,
+    "max_controls": 200
+  }
+  ```
+- **Body (list windows):**
+  ```json
+  {
+    "list_only": true,
+    "include_empty": false
+  }
+  ```
+- **Response:** `{"status": "success", "result": { ... }}`
+
+#### `POST /run/winedbg`
+Run a Windows app under `winedbg` (gdb proxy or command mode).
+- **Body:**
+  ```json
+  {
+    "path": "/apps/MyApp.exe",
+    "args": "-debug",
+    "detach": true,
+    "mode": "gdb",
+    "port": 2345,
+    "no_start": true
+  }
+  ```
+- **Command mode example:**
+  ```json
+  {
+    "path": "/apps/MyApp.exe",
+    "mode": "default",
+    "command": "info proc"
+  }
+  ```
+- **Response:** `{"status": "launched", "path": "...", "mode": "gdb"}`
+
 ## Usage
 
 To enable the API server, set `ENABLE_API=1` when starting the container. For security, also set `API_TOKEN`.
@@ -127,4 +220,12 @@ You can then interact with it via `curl` or any HTTP client inside the container
 
 ```bash
 curl -H "X-API-Key: mysecret" http://localhost:8000/health
+```
+
+### Auth-Protected Host Testing
+If you expose port 8000 (see `compose/docker-compose.yml`) and set `API_TOKEN`, you can test from the host:
+
+```bash
+API_TOKEN=mysecret docker-compose -f compose/docker-compose.yml --profile headless up -d
+API_TOKEN=mysecret ./scripts/health-check.sh --all
 ```

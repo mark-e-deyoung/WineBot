@@ -11,15 +11,27 @@ client = TestClient(app)
 def auth_headers():
     return {"X-API-Key": "test-token"}
 
-@patch("subprocess.run")
-def test_health_check(mock_run, auth_headers):
+@patch("api.server.safe_command")
+@patch("api.server.check_binary")
+@patch("api.server.statvfs_info")
+@patch("os.path.isdir")
+@patch("os.path.exists")
+def test_health_check(mock_exists, mock_isdir, mock_statvfs, mock_check_binary, mock_safe_command, auth_headers):
     # Mock env var
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
-        mock_run.return_value.returncode = 0
+        mock_safe_command.return_value = {"ok": True, "stdout": "", "stderr": ""}
+        mock_check_binary.return_value = {"present": True, "path": "/bin/tool"}
+        mock_statvfs.return_value = {"ok": True, "writable": True}
+        mock_isdir.return_value = True
+        mock_exists.return_value = True
         response = client.get("/health", headers=auth_headers)
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "x11": "connected"}
-        mock_run.assert_called_with(["xdpyinfo"], check=True, capture_output=True)
+        payload = response.json()
+        assert payload["status"] == "ok"
+        assert payload["x11"] == "connected"
+        assert payload["wineprefix"] == "ready"
+        assert payload["tools_ok"] is True
+        assert payload["storage_ok"] is True
 
 @patch("subprocess.run")
 def test_health_check_unauthorized(mock_run):
@@ -27,13 +39,106 @@ def test_health_check_unauthorized(mock_run):
         response = client.get("/health", headers={"X-API-Key": "wrong"})
         assert response.status_code == 403
 
-@patch("subprocess.run")
-def test_health_check_no_token_required(mock_run):
+@patch("api.server.safe_command")
+@patch("api.server.check_binary")
+@patch("api.server.statvfs_info")
+@patch("os.path.isdir")
+@patch("os.path.exists")
+def test_health_check_no_token_required(mock_exists, mock_isdir, mock_statvfs, mock_check_binary, mock_safe_command):
     # No API_TOKEN env var set
     with patch.dict(os.environ, {}, clear=True):
-        mock_run.return_value.returncode = 0
+        mock_safe_command.return_value = {"ok": True, "stdout": "", "stderr": ""}
+        mock_check_binary.return_value = {"present": True, "path": "/bin/tool"}
+        mock_statvfs.return_value = {"ok": True, "writable": True}
+        mock_isdir.return_value = True
+        mock_exists.return_value = True
         response = client.get("/health") # No header
         assert response.status_code == 200
+
+@patch("api.server.meminfo_summary", return_value={"mem_total_kb": 1, "mem_available_kb": 1})
+@patch("platform.node", return_value="test-host")
+def test_health_system(_mock_node, _mock_meminfo, auth_headers):
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/system", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["hostname"] == "test-host"
+        assert "uptime_seconds" in payload
+
+@patch("api.server.safe_command")
+def test_health_x11(mock_safe_command, auth_headers):
+    def side_effect(cmd, timeout=5):
+        if cmd[0] == "xdpyinfo":
+            return {"ok": True}
+        if cmd[:2] == ["pgrep", "-x"]:
+            return {"ok": True, "stdout": "123"}
+        if cmd[0] == "/automation/x11.sh":
+            return {"ok": True, "stdout": "0xabc"}
+        return {"ok": False}
+    mock_safe_command.side_effect = side_effect
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/x11", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["connected"] is True
+
+@patch("api.server.safe_command")
+def test_health_windows(mock_safe_command, auth_headers):
+    def side_effect(cmd, timeout=5):
+        if cmd[0] == "/automation/x11.sh" and cmd[1] == "list-windows":
+            return {"ok": True, "stdout": "0x1 Title One\n0x2 Title Two"}
+        if cmd[0] == "/automation/x11.sh" and cmd[1] == "active-window":
+            return {"ok": True, "stdout": "0x1"}
+        return {"ok": False}
+    mock_safe_command.side_effect = side_effect
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/windows", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["count"] == 2
+
+@patch("api.server.safe_command")
+@patch("os.path.isdir")
+@patch("os.path.exists")
+def test_health_wine(mock_exists, mock_isdir, mock_safe_command, auth_headers):
+    mock_exists.return_value = True
+    mock_isdir.return_value = True
+    mock_safe_command.return_value = {"ok": True, "stdout": "wine-9.0"}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/wine", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["prefix_exists"] is True
+        assert payload["system_reg_exists"] is True
+
+@patch("api.server.check_binary")
+def test_health_tools(mock_check_binary, auth_headers):
+    mock_check_binary.return_value = {"present": True, "path": "/bin/tool"}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/tools", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+
+@patch("api.server.statvfs_info")
+def test_health_storage(mock_statvfs, auth_headers):
+    mock_statvfs.return_value = {"ok": True, "writable": True}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/storage", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+
+@patch("api.server.safe_command")
+@patch("os.path.exists")
+def test_health_recording(mock_exists, mock_safe_command, auth_headers):
+    mock_exists.return_value = False
+    mock_safe_command.return_value = {"ok": False}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/health/recording", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["enabled"] in (True, False)
 
 @patch("subprocess.run")
 def test_run_app_valid_path(mock_run, auth_headers):
@@ -99,3 +204,20 @@ def test_run_python(mock_open, mock_run, auth_headers):
         mock_run.return_value.stdout = "Hello"
         response = client.post("/run/python", json={"script": "print('Hello')"}, headers=auth_headers)
         assert response.status_code == 200
+
+def test_inspect_window_requires_target(auth_headers):
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.post("/inspect/window", json={}, headers=auth_headers)
+        assert response.status_code == 400
+
+@patch("subprocess.run")
+@patch("builtins.open", new_callable=MagicMock)
+@patch("os.path.exists")
+def test_inspect_window_list_only(mock_exists, mock_open, mock_run, auth_headers):
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        mock_exists.return_value = True
+        mock_run.return_value.returncode = 0
+        mock_open.return_value.__enter__.return_value.read.return_value = '{"windows":[]}'
+        response = client.post("/inspect/window", json={"list_only": True}, headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"

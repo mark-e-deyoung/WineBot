@@ -9,11 +9,12 @@ The preferred method for agents to control WineBot is via the internal HTTP API 
 **Base URL:** `http://localhost:8000` (inside container) or mapped port.
 
 ### Capabilities
-- **Vision:** `GET /screenshot` (returns PNG)
-- **State:** `GET /windows` (list open windows), `GET /health`
+- **Vision:** `GET /screenshot` (returns PNG; metadata written to `.png.json`, `X-Request-Id` header)
+- **State:** `GET /windows` (list open windows), `GET /health` and `/health/*`
 - **Control:** `POST /input/mouse/click`, `POST /windows/focus`
-- **Automation:** `POST /run/ahk`, `POST /run/autoit`, `POST /run/python`
+- **Automation:** `POST /run/ahk`, `POST /run/autoit`, `POST /run/python`, `POST /inspect/window`
 - **Management:** `POST /apps/run`, `GET /apps`
+- **Debug:** `POST /run/winedbg`
 
 ### Authentication
 If `API_TOKEN` is set in the container environment, you MUST provide it:
@@ -25,6 +26,27 @@ If `API_TOKEN` is set in the container environment, you MUST provide it:
 3. **Focus:** `POST /windows/focus` `{"window_id": "..."}`
 4. **Interact:** `POST /run/ahk` `{"script": "Send, Hello World"}`
 5. **Verify:** `GET /screenshot` -> Analyze image.
+
+### Agent Quick Start
+Minimal, fully-authenticated flow:
+
+```bash
+# 1) Check health
+curl -H "X-API-Key: $API_TOKEN" http://localhost:8000/health
+
+# 2) List windows (X11)
+curl -H "X-API-Key: $API_TOKEN" http://localhost:8000/windows
+
+# 3) Inspect Windows controls (WinSpy-style)
+curl -H "X-API-Key: $API_TOKEN" -H "Content-Type: application/json" \
+  -X POST http://localhost:8000/inspect/window \
+  -d '{"list_only":true}'
+
+# 4) Take a screenshot with metadata
+curl -H "X-API-Key: $API_TOKEN" \
+  "http://localhost:8000/screenshot?label=agent-run&tag=agent" \
+  -o /tmp/agent.png
+```
 
 See `docs/api.md` for the full OpenAPI specification.
 
@@ -40,6 +62,7 @@ If direct shell access (`docker exec`) is preferred, use the optimized helper sc
 - **Focus:** `/automation/x11.sh focus <id>`
 - **Click:** `/automation/x11.sh click-at <x> <y>`
 - **Screenshot:** `/automation/screenshot.sh /tmp/out.png` (Supports `--window`, `--label`)
+- **Screenshot Metadata:** `/automation/screenshot.sh --request-id <id> --tag <tag> /tmp/out.png` (writes `.png.json`)
 
 ### Execution
 - **AutoHotkey:** `/scripts/run-ahk.sh script.ahk` (Handles Wine bootstrapping automatically)
@@ -56,9 +79,10 @@ Use the provided `docker-compose.yml` to spin up the environment.
 - **Environment:** Set `API_TOKEN` for security.
 
 ### Troubleshooting
-- **No Windows?** Check `GET /health`. Ensure `wine explorer` or the app is running.
+- **No Windows?** Check `GET /health` (or `/health/x11`). Ensure `wine explorer` or the app is running.
 - **Input fails?** Ensure the window is focused (`POST /windows/focus`).
 - **Crashes?** Check container logs or use `/run/ahk` logging.
+- **API health from host:** `scripts/health-check.sh --all` (requires `API_TOKEN` if set).
 
 ---
 
