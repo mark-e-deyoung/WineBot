@@ -14,7 +14,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         wine wine64 wine32 winetricks cabextract \
         xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify \
         python3 python3-pip python3-opencv gdb \
-        imagemagick x11-utils procps \
+        imagemagick x11-utils procps ffmpeg \
         ca-certificates curl gosu unzip \
     && rm -rf /var/lib/apt/lists/*
 
@@ -59,9 +59,8 @@ COPY api /api
 COPY tests /tests
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chown -R winebot:winebot /automation /scripts /api /tests \
-    && chmod +x /automation/*.sh /automation/*.py \
-    && chmod +x /scripts/*.sh \
-    && chmod +x /tests/*.sh
+    && find /automation /scripts /tests -name "*.sh" -exec chmod +x {} + \
+    && find /automation /scripts /tests -name "*.py" -exec chmod +x {} +
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /

@@ -19,6 +19,7 @@ Options:
   --winedbg-no-start           Do not auto-start gdb (default).
   --winedbg-command "CMD"      Run a winedbg command (default mode only).
   --winedbg-script PATH        Run winedbg commands from a file (default mode only).
+  --record                     Enable session recording.
   --detach, -d                 Run in the background.
   --no-build                   Skip building the image.
   -h, --help                   Show this help.
@@ -49,6 +50,7 @@ winedbg_port=""
 winedbg_no_start=""
 winedbg_command=""
 winedbg_script=""
+record="0"
 build="1"
 detach="0"
 
@@ -57,6 +59,9 @@ while [ $# -gt 0 ]; do
     --mode)
       mode="${2:-}"
       shift
+      ;;
+    --record)
+      record="1"
       ;;
     --headless)
       mode="headless"
@@ -216,6 +221,9 @@ if [ -n "$winedbg_command" ]; then
 fi
 if [ -n "$winedbg_script" ]; then
   env_vars+=(WINEDBG_SCRIPT="$winedbg_script")
+fi
+if [ "$record" = "1" ]; then
+  env_vars+=(WINEBOT_RECORD="1")
 fi
 
 compose_args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up --force-recreate)
