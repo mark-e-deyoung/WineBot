@@ -68,6 +68,7 @@ If direct shell access (`docker exec`) is preferred, use the optimized helper sc
 - **AutoHotkey:** `/scripts/run-ahk.sh script.ahk` (Handles Wine bootstrapping automatically)
 - **AutoIt:** `/scripts/run-autoit.sh script.au3`
 - **App Launch:** `/scripts/run-app.sh "C:/Path/To/App.exe"`
+- **Auto-View:** `/scripts/run-app.sh "C:/Path/To/App.exe" --view novnc` (host helper)
 
 ---
 

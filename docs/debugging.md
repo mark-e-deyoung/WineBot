@@ -121,3 +121,12 @@ curl -X POST http://localhost:8000/inspect/window \
   -H "Content-Type: application/json" \
   -d '{"title":"Untitled - Notepad","include_controls":true}'
 ```
+
+### Auto-Open Viewer (Host)
+When launching via `scripts/run-app.sh`, you can auto-open a viewer:
+
+```bash
+scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view novnc
+```
+
+Supported modes: `auto`, `novnc`, `vnc`. This forces interactive mode and launches a browser or VNC client. When noVNC is used, the VNC password is passed via URL for auto-connect.

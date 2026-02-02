@@ -20,6 +20,13 @@ Options:
   --winedbg-command "CMD"      Run a winedbg command (default mode only).
   --winedbg-script PATH        Run winedbg commands from a file (default mode only).
   --record                     Enable session recording.
+  --view [novnc|vnc|auto]      Auto-open viewer (forces --mode interactive, implies --detach).
+  --novnc-url URL              Override noVNC URL (default: http://localhost:6080/vnc.html?autoconnect=1&resize=scale).
+  --novnc-password PASS        noVNC password (optional; enables auto-connect without prompts).
+  --vnc-host HOST              VNC host (default: localhost).
+  --vnc-port PORT              VNC port (default: 5900).
+  --vnc-viewer CMD             Custom VNC viewer command (optional).
+  --view-timeout SEC           Viewer wait timeout (default: 30).
   --detach, -d                 Run in the background.
   --no-build                   Skip building the image.
   -h, --help                   Show this help.
@@ -53,6 +60,14 @@ winedbg_script=""
 record="0"
 build="1"
 detach="0"
+view_mode=""
+novnc_url=""
+novnc_password=""
+novnc_password_set="0"
+vnc_host="${VNC_HOST:-localhost}"
+vnc_port="${VNC_PORT:-5900}"
+view_timeout="30"
+vnc_viewer=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -112,6 +127,39 @@ while [ $# -gt 0 ]; do
       winedbg_script="${2:-}"
       shift
       ;;
+    --view)
+      if [ -n "${2:-}" ] && [[ ! "${2:-}" =~ ^- ]]; then
+        view_mode="${2}"
+        shift
+      else
+        view_mode="auto"
+      fi
+      ;;
+    --novnc-url)
+      novnc_url="${2:-}"
+      shift
+      ;;
+    --novnc-password)
+      novnc_password="${2-}"
+      novnc_password_set="1"
+      shift
+      ;;
+    --vnc-host)
+      vnc_host="${2:-}"
+      shift
+      ;;
+    --vnc-port)
+      vnc_port="${2:-}"
+      shift
+      ;;
+    --vnc-viewer)
+      vnc_viewer="${2:-}"
+      shift
+      ;;
+    --view-timeout)
+      view_timeout="${2:-}"
+      shift
+      ;;
     --detach|-d)
       detach="1"
       ;;
@@ -134,6 +182,15 @@ done
 if [ "$mode" != "headless" ] && [ "$mode" != "interactive" ]; then
   echo "Invalid mode: $mode (expected headless or interactive)" >&2
   exit 1
+fi
+
+if [ -n "$view_mode" ]; then
+  if [ "$mode" = "headless" ]; then
+    mode="interactive"
+  fi
+  if [ "$detach" != "1" ]; then
+    detach="1"
+  fi
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
@@ -236,3 +293,28 @@ fi
 compose_args+=("$service")
 
 env "${env_vars[@]}" "${compose_args[@]}"
+
+if [ -n "$view_mode" ]; then
+  novnc_host="${NOVNC_HOST:-localhost}"
+  novnc_port="${NOVNC_PORT:-6080}"
+  if [ -z "$novnc_url" ]; then
+    novnc_url="http://${novnc_host}:${novnc_port}/vnc.html?autoconnect=1&resize=scale"
+  fi
+  if [ "$novnc_password_set" != "1" ]; then
+    if [ -n "${NOVNC_PASSWORD:-}" ]; then
+      novnc_password="${NOVNC_PASSWORD}"
+    elif [ -n "${VNC_PASSWORD:-}" ]; then
+      novnc_password="${VNC_PASSWORD}"
+    else
+      novnc_password="winebot"
+    fi
+  fi
+  view_args=(--mode "$view_mode" --novnc-url "$novnc_url" --vnc-host "$vnc_host" --vnc-port "$vnc_port" --timeout "$view_timeout")
+  if [ -n "$novnc_password" ]; then
+    view_args+=(--novnc-password "$novnc_password")
+  fi
+  if [ -n "$vnc_viewer" ]; then
+    view_args+=(--viewer "$vnc_viewer")
+  fi
+  "$repo_root/scripts/auto-view.sh" "${view_args[@]}" || true
+fi

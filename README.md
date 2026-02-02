@@ -78,6 +78,12 @@ See `docs/installing-apps.md` for more options.
 
 Change the default VNC password in `compose/docker-compose.yml`.
 
+Auto-open noVNC or a VNC viewer (host helper):
+
+`scripts/run-app.sh "/wineprefix/drive_c/Program Files/MyApp/MyApp.exe" --view novnc`
+
+This forces interactive mode and opens a browser to noVNC with auto-connect. If a VNC password is set, it is passed via the URL to avoid prompts (consider the security tradeoff).
+
 ## Take a screenshot (headless)
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`
