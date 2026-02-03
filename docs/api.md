@@ -102,6 +102,7 @@ Gracefully stop the recorder and UI components, shut down Wine, and terminate th
 
 #### `GET /ui`
 Serve the built‑in dashboard (noVNC + API controls). If `API_TOKEN` is set, enter it in the UI to authenticate API requests.
+- Includes lifecycle controls (graceful shutdown and power off), component status badges, and recent lifecycle events.
 
 #### `GET /windows`
 List currently visible windows.

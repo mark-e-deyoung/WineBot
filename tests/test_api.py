@@ -147,6 +147,9 @@ def test_ui_dashboard_served(auth_headers):
         assert response.status_code == 200
         assert "id=\"vnc-container\"" in response.text
         assert "id=\"control-panel\"" in response.text
+        assert "id=\"btn-shutdown\"" in response.text
+        assert "id=\"btn-poweroff\"" in response.text
+        assert "id=\"lifecycle-events\"" in response.text
 
 def test_ui_dashboard_no_token_required():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
