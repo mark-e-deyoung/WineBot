@@ -119,6 +119,42 @@ if session_dir and session_id:
         json.dump(manifest, f, indent=2)
 PY
 
+log_event() {
+    local kind="$1"
+    local message="$2"
+    EVENT_KIND="$kind" EVENT_MESSAGE="$message" EVENT_SOURCE="entrypoint" python3 - <<'PY' || true
+import datetime
+import json
+import os
+import time
+
+session_dir = os.environ.get("WINEBOT_SESSION_DIR")
+session_id = os.environ.get("WINEBOT_SESSION_ID")
+kind = os.environ.get("EVENT_KIND")
+message = os.environ.get("EVENT_MESSAGE")
+source = os.environ.get("EVENT_SOURCE", "entrypoint")
+if not session_dir or not kind:
+    raise SystemExit(0)
+
+path = os.path.join(session_dir, "logs", "lifecycle.jsonl")
+os.makedirs(os.path.dirname(path), exist_ok=True)
+event = {
+    "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "timestamp_epoch_ms": int(time.time() * 1000),
+    "session_id": session_id,
+    "kind": kind,
+    "message": message,
+    "source": source,
+}
+with open(path, "a") as f:
+    f.write(json.dumps(event) + "\n")
+PY
+}
+
+log_event "session_created" "Session initialized"
+log_event "xvfb_started" "Xvfb started"
+log_event "openbox_started" "Openbox started"
+
 exec > >(tee -a "$SESSION_DIR/logs/entrypoint.log") 2>&1
 
 # --- Recorder Setup ---
@@ -174,6 +210,7 @@ if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
     RECORDER_PID=$!
     
     echo "Recorder started (PID: $RECORDER_PID) in $SESSION_DIR"
+    log_event "recorder_started" "Recorder started"
 fi
 
 stop_recorder() {
@@ -185,7 +222,12 @@ stop_recorder() {
     fi
 }
 
-trap 'stop_recorder' EXIT
+shutdown_notice() {
+    log_event "shutdown_requested" "Shutdown requested"
+    stop_recorder
+}
+
+trap 'shutdown_notice' EXIT
 # ----------------------
 
 # 4. Start VNC/noVNC if requested
@@ -200,20 +242,25 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
         VNC_ARGS+=("-nopw")
     fi
     x11vnc "${VNC_ARGS[@]}" >/dev/null 2>&1
+    log_event "vnc_started" "x11vnc started"
 
     # Start noVNC (websockify)
     websockify --web /usr/share/novnc/ "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT:-5900}" >/dev/null 2>&1 &
+    log_event "novnc_started" "noVNC started"
 fi
 
 # 5. Initialize Wine Prefix (if needed)
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX..."
     annotate_safe "Initializing WINEPREFIX..." "lifecycle" "entrypoint"
+    log_event "wineboot_init" "Initializing WINEPREFIX"
     wineboot --init >/dev/null 2>&1
     annotate_safe "WINEPREFIX ready" "lifecycle" "entrypoint"
+    log_event "wineboot_ready" "WINEPREFIX ready"
 else
     # Ensure Wine services (explorer, etc.) are running
     wine explorer >/dev/null 2>&1 &
+    log_event "wine_explorer_started" "Wine explorer started"
 fi
 
 # 6. Execute under winedbg if requested
@@ -229,6 +276,7 @@ fi
 if [ "${ENABLE_API:-0}" = "1" ]; then
     echo "Starting API server on port 8000..."
     annotate_safe "Starting API server" "lifecycle" "entrypoint"
+    log_event "api_starting" "Starting API server"
     # Ensure X11 env is sourced for the python process if needed, 
     # though subprocess calls in server.py usually source x11_env.sh via wrapper scripts.
     # We run it as winebot user.
@@ -237,6 +285,7 @@ if [ "${ENABLE_API:-0}" = "1" ]; then
     else
         uvicorn api.server:app --host 0.0.0.0 --port 8000 > "$SESSION_DIR/logs/api.log" 2>&1 &
     fi
+    log_event "api_process_started" "API process started"
 fi
 
 # Keep container alive (if no command provided)

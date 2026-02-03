@@ -273,6 +273,63 @@ def test_screenshot_output_dir_header(tmp_path, auth_headers):
                 assert response.status_code == 200
                 assert response.headers.get("X-Screenshot-Path") == str(shot_path)
 
+@patch("api.server.safe_command")
+def test_lifecycle_status(mock_safe, auth_headers):
+    mock_safe.return_value = {"ok": False}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.get("/lifecycle/status", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert "processes" in payload
+        assert "session_dir" in payload
+
+def test_lifecycle_events(tmp_path, auth_headers):
+    session_dir = tmp_path / "session-1"
+    logs_dir = session_dir / "logs"
+    logs_dir.mkdir(parents=True)
+    log_path = logs_dir / "lifecycle.jsonl"
+    log_path.write_text('{"kind":"one"}\n{"kind":"two"}\n')
+    session_file = tmp_path / "session_file"
+    session_file.write_text(str(session_dir))
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            response = client.get("/lifecycle/events?limit=1", headers=auth_headers)
+            assert response.status_code == 200
+            events = response.json()["events"]
+            assert len(events) == 1
+            assert events[0]["kind"] == "two"
+
+@patch("api.server._shutdown_process")
+def test_lifecycle_shutdown(mock_shutdown, tmp_path, auth_headers):
+    session_dir = tmp_path / "session-2"
+    (session_dir / "logs").mkdir(parents=True)
+    session_file = tmp_path / "session_file"
+    session_file.write_text(str(session_dir))
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            with patch("api.server.graceful_wine_shutdown", return_value={"wineboot": {"ok": True}}):
+                with patch("api.server.graceful_component_shutdown", return_value={"xvfb": {"ok": True}}):
+                    with patch("api.server.recorder_running", return_value=False):
+                        response = client.post("/lifecycle/shutdown", headers=auth_headers)
+                        assert response.status_code == 200
+                        payload = response.json()
+                        assert payload["status"] == "shutting_down"
+                        assert "wine_shutdown" in payload
+                        assert "component_shutdown" in payload
+
+@patch("api.server._shutdown_process")
+def test_lifecycle_power_off(mock_shutdown, tmp_path, auth_headers):
+    session_dir = tmp_path / "session-3"
+    (session_dir / "logs").mkdir(parents=True)
+    session_file = tmp_path / "session_file"
+    session_file.write_text(str(session_dir))
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        with patch("api.server.SESSION_FILE", str(session_file)):
+            response = client.post("/lifecycle/shutdown?power_off=true", headers=auth_headers)
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "powering_off"
+
 @patch("subprocess.run")
 @patch("builtins.open", new_callable=MagicMock)
 @patch("os.path.exists")

@@ -16,6 +16,7 @@ import uuid
 import json
 import re
 import fcntl
+import signal
 
 app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot")
 START_TIME = time.time()
@@ -45,6 +46,11 @@ async def verify_token(request: Request, api_key: str = Security(api_key_header)
 
 # Apply security globally
 app.router.dependencies.append(Depends(verify_token))
+
+@app.on_event("startup")
+def log_api_startup() -> None:
+    session_dir = read_session_dir()
+    append_lifecycle_event(session_dir, "api_started", "API server started", source="api")
 
 # Path Safety
 ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts"]
@@ -291,6 +297,40 @@ def ensure_session_dir(session_root: Optional[str] = None) -> Optional[str]:
     ensure_session_subdirs(session_dir)
     return session_dir
 
+def session_id_from_dir(session_dir: Optional[str]) -> Optional[str]:
+    if not session_dir:
+        return None
+    return os.path.basename(session_dir)
+
+def lifecycle_log_path(session_dir: str) -> str:
+    return os.path.join(session_dir, "logs", "lifecycle.jsonl")
+
+def append_lifecycle_event(
+    session_dir: Optional[str],
+    kind: str,
+    message: str,
+    source: str = "api",
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    if not session_dir:
+        return
+    event = {
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp_epoch_ms": int(time.time() * 1000),
+        "session_id": session_id_from_dir(session_dir),
+        "kind": kind,
+        "message": message,
+        "source": source,
+    }
+    if extra:
+        event["extra"] = extra
+    try:
+        os.makedirs(os.path.join(session_dir, "logs"), exist_ok=True)
+        with open(lifecycle_log_path(session_dir), "a") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
+
 def next_segment_index(session_dir: str) -> int:
     index_path = os.path.join(session_dir, "segment_index.txt")
     lock_path = os.path.join(session_dir, "segment_index.lock")
@@ -462,6 +502,139 @@ def health_recording():
         "recorder_pids": recorder.get("stdout").splitlines() if recorder.get("ok") and recorder.get("stdout") else [],
         "state": status["state"],
     }
+
+@app.get("/lifecycle/status")
+def lifecycle_status():
+    """Status for core WineBot components."""
+    session_dir = read_session_dir()
+    session_id = session_id_from_dir(session_dir)
+    wineprefix = os.getenv("WINEPREFIX", "/wineprefix")
+    user_dir = os.getenv("WINEBOT_USER_DIR")
+    recorder = safe_command(["pgrep", "-f", "automation.recorder start"])
+    enabled = os.getenv("WINEBOT_RECORD", "0") == "1"
+    record_status = recording_status(session_dir, enabled)
+    return {
+        "session_id": session_id,
+        "session_dir": session_dir,
+        "user_dir": user_dir,
+        "wine_user_dir": os.path.join(wineprefix, "drive_c", "users", "winebot"),
+        "lifecycle_log": lifecycle_log_path(session_dir) if session_dir else None,
+        "processes": {
+            "xvfb": safe_command(["pgrep", "-x", "Xvfb"]),
+            "openbox": safe_command(["pgrep", "-x", "openbox"]),
+            "wine_explorer": safe_command(["pgrep", "-f", "wine explorer"]),
+            "x11vnc": safe_command(["pgrep", "-x", "x11vnc"]),
+            "novnc": safe_command(["pgrep", "-f", "websockify|novnc_proxy"]),
+            "api_pid": os.getpid(),
+            "recorder": {
+                "enabled": enabled,
+                "state": record_status["state"],
+                "running": recorder.get("ok", False),
+                "pids": recorder.get("stdout").splitlines() if recorder.get("ok") and recorder.get("stdout") else [],
+            },
+        },
+        "can_shutdown": True,
+    }
+
+@app.get("/lifecycle/events")
+def lifecycle_events(limit: int = 100):
+    """Return recent lifecycle events."""
+    if limit < 1:
+        raise HTTPException(status_code=400, detail="limit must be >= 1")
+    session_dir = read_session_dir()
+    if not session_dir:
+        return {"events": []}
+    path = lifecycle_log_path(session_dir)
+    if not os.path.exists(path):
+        return {"events": []}
+    events: List[Dict[str, Any]] = []
+    try:
+        with open(path, "r") as f:
+            lines = f.read().splitlines()
+        for line in lines[-limit:]:
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    except Exception:
+        pass
+    return {"events": events}
+
+def _shutdown_process(delay: float, sig: int = signal.SIGTERM) -> None:
+    time.sleep(delay)
+    try:
+        os.kill(1, sig)
+    except Exception:
+        os._exit(0)
+
+def graceful_wine_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
+    results: Dict[str, Any] = {}
+    append_lifecycle_event(session_dir, "wine_shutdown_requested", "Requesting Wine shutdown", source="api")
+    wineboot = safe_command(["wineboot", "--shutdown"], timeout=10)
+    results["wineboot"] = wineboot
+    if wineboot.get("ok"):
+        append_lifecycle_event(session_dir, "wine_shutdown_complete", "Wine shutdown complete", source="api")
+    else:
+        append_lifecycle_event(session_dir, "wine_shutdown_failed", "Wine shutdown failed", source="api", extra=wineboot)
+    wineserver = safe_command(["wineserver", "-k"], timeout=5)
+    results["wineserver"] = wineserver
+    if wineserver.get("ok"):
+        append_lifecycle_event(session_dir, "wineserver_killed", "wineserver -k completed", source="api")
+    else:
+        append_lifecycle_event(session_dir, "wineserver_kill_failed", "wineserver -k failed", source="api", extra=wineserver)
+    return results
+
+def graceful_component_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
+    results: Dict[str, Any] = {}
+    append_lifecycle_event(session_dir, "component_shutdown_requested", "Stopping UI/VNC components", source="api")
+    components = {
+        "x11vnc": ["pkill", "-TERM", "-x", "x11vnc"],
+        "novnc_proxy": ["pkill", "-TERM", "-f", "novnc_proxy"],
+        "websockify": ["pkill", "-TERM", "-f", "websockify"],
+        "openbox": ["pkill", "-TERM", "-x", "openbox"],
+        "xvfb": ["pkill", "-TERM", "-x", "Xvfb"],
+        "wine_explorer": ["pkill", "-TERM", "-f", "wine explorer"],
+    }
+    for name, cmd in components.items():
+        result = safe_command(cmd, timeout=3)
+        results[name] = result
+        if result.get("ok"):
+            append_lifecycle_event(session_dir, f"{name}_stopped", f"{name} stopped", source="api")
+        else:
+            append_lifecycle_event(session_dir, f"{name}_stop_failed", f"{name} stop failed", source="api", extra=result)
+    return results
+
+@app.post("/lifecycle/shutdown")
+def lifecycle_shutdown(
+    background_tasks: BackgroundTasks,
+    delay: float = 0.5,
+    wine_shutdown: bool = True,
+    power_off: bool = False,
+):
+    """Gracefully stop components and terminate the container process."""
+    session_dir = read_session_dir()
+    append_lifecycle_event(session_dir, "shutdown_requested", "Shutdown requested via API", source="api")
+    if power_off:
+        append_lifecycle_event(session_dir, "power_off", "Immediate shutdown requested", source="api")
+        background_tasks.add_task(_shutdown_process, max(0.0, delay), signal.SIGKILL)
+        return {"status": "powering_off", "delay_seconds": delay}
+
+    wine_result = None
+    component_result = None
+    if wine_shutdown:
+        wine_result = graceful_wine_shutdown(session_dir)
+    if session_dir and recorder_running(session_dir):
+        try:
+            stop_recording()
+        except Exception:
+            pass
+    component_result = graceful_component_shutdown(session_dir)
+    background_tasks.add_task(_shutdown_process, delay, signal.SIGTERM)
+    response: Dict[str, Any] = {"status": "shutting_down", "delay_seconds": delay}
+    if wine_shutdown:
+        response["wine_shutdown"] = wine_result
+    response["component_shutdown"] = component_result
+    return response
 
 @app.get("/ui")
 @app.get("/ui/")

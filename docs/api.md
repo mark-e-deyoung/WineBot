@@ -31,6 +31,9 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 | GET | `/health/tools` | Tool availability |
 | GET | `/health/storage` | Storage stats |
 | GET | `/health/recording` | Recorder status |
+| GET | `/lifecycle/status` | Lifecycle status for core components |
+| GET | `/lifecycle/events` | Recent lifecycle events |
+| POST | `/lifecycle/shutdown` | Gracefully stop the container |
 | GET | `/ui` | noVNC + API dashboard UI |
 | GET | `/windows` | List visible windows |
 | GET | `/windows/active` | Active window ID |
@@ -76,6 +79,24 @@ Disk space and writeability for `/wineprefix`, `/artifacts`, and `/tmp`.
 
 #### `GET /health/recording`
 Recorder status and current session info (if any).
+
+#### `GET /lifecycle/status`
+Status for core WineBot components (Xvfb, Openbox, VNC/noVNC, recorder, etc).
+- **Response:** includes `session_id`, `session_dir`, `user_dir`, `processes`, and `lifecycle_log`.
+
+#### `GET /lifecycle/events`
+Return recent lifecycle events.
+- **Parameters:**
+  - `limit` (optional): Max events to return (default: 100).
+- **Response:** `{"events":[ ... ]}`
+
+#### `POST /lifecycle/shutdown`
+Gracefully stop the recorder and UI components, shut down Wine, and terminate the container process.
+- **Parameters:**
+  - `delay` (optional): Seconds to wait before terminating (default: 0.5).
+  - `wine_shutdown` (optional): Whether to run `wineboot --shutdown` and `wineserver -k` before exiting (default: true).
+  - `power_off` (optional): Immediately terminate the container (unsafe; skips graceful shutdown).
+- **Response:** `{"status":"shutting_down","delay_seconds":0.5,"wine_shutdown":{...},"component_shutdown":{...}}`
 
 ### Dashboard
 
