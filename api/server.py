@@ -651,6 +651,14 @@ def lifecycle_shutdown(
     append_lifecycle_event(session_dir, "shutdown_requested", "Shutdown requested via API", source="api")
     if power_off:
         append_lifecycle_event(session_dir, "power_off", "Immediate shutdown requested", source="api")
+        tail_kill = safe_command(["pkill", "-9", "-f", "tail -f /dev/null"])
+        append_lifecycle_event(
+            session_dir,
+            "power_off_keepalive_kill",
+            "Attempted to stop keepalive process",
+            source="api",
+            extra=tail_kill,
+        )
         schedule_shutdown(session_dir, max(0.0, delay), signal.SIGKILL)
         return {"status": "powering_off", "delay_seconds": delay}
 

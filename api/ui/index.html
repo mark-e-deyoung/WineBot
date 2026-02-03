@@ -537,6 +537,11 @@
       endedStatus.textContent = "";
     }
 
+    function setResumeState(enabled, label) {
+      resumePollingBtn.disabled = !enabled;
+      resumePollingBtn.textContent = label || (enabled ? "Continue polling" : "Polling stopped");
+    }
+
     function enterBackoff(reasonKey, reasonText, detailText) {
       const switchingReason = sessionEndedReason && sessionEndedReason !== reasonKey;
       if (pollMode !== "backoff" || switchingReason) {
@@ -546,6 +551,9 @@
       pollMode = "backoff";
       if (!sessionEndedReason || sessionEndedReason !== reasonKey) {
         showSessionEnded(reasonKey, reasonText, detailText);
+      }
+      if (reasonKey !== "poweroff") {
+        setResumeState(true, "Continue polling");
       }
     }
 
@@ -582,6 +590,27 @@
         clearInterval(countdownTimer);
         countdownTimer = null;
       }
+    }
+
+    function stopPolling(reasonText, detailText) {
+      pollStopped = true;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      stopCountdown();
+      showSessionEnded("poweroff", reasonText, detailText);
+      endedStatus.textContent = "Polling stopped.";
+      setResumeState(false, "Polling stopped");
+    }
+
+    function attemptCloseTab() {
+      window.close();
+      setTimeout(() => {
+        if (!window.closed) {
+          endedStatus.textContent = "Tab could not be closed automatically. Please close it manually.";
+        }
+      }, 300);
     }
 
     function startCountdown() {
@@ -901,8 +930,15 @@
         }
         const data = await response.json();
         lifecycleStatus.textContent = `Lifecycle: ${data.status}`;
+        if (powerOff) {
+          stopPolling("Power off requested", "This tab will close and polling will stop.");
+          attemptCloseTab();
+        }
       } catch (err) {
         lifecycleStatus.textContent = `Lifecycle error: ${err.message}`;
+        if (powerOff) {
+          stopPolling("Power off failed", "API error. Polling has stopped.");
+        }
       }
     }
 
@@ -962,12 +998,7 @@
         scheduleNextPoll(BASE_BACKOFF_MS);
       });
       closeTabBtn.addEventListener("click", () => {
-        window.close();
-        setTimeout(() => {
-          if (!window.closed) {
-            endedStatus.textContent = "Tab could not be closed automatically. Please close it manually.";
-          }
-        }, 300);
+        attemptCloseTab();
       });
     }
 
