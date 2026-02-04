@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "${WINEBOT_SUPPRESS_DEPRECATION:-0}" != "1" ]; then
+  echo "DEPRECATED: scripts/health-check.sh is deprecated. Use scripts/winebotctl health or /health endpoints instead." >&2
+fi
+
 usage() {
   cat <<'EOF'
 Usage: scripts/health-check.sh [options]

@@ -334,5 +334,6 @@ If you expose port 8000 (see `compose/docker-compose.yml`) and set `API_TOKEN`, 
 
 ```bash
 API_TOKEN=mysecret docker-compose -f compose/docker-compose.yml --profile headless up -d
-API_TOKEN=mysecret ./scripts/health-check.sh --all
+API_TOKEN=mysecret ./scripts/winebotctl health
+API_TOKEN=mysecret ./scripts/winebotctl health system
 ```

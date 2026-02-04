@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "${WINEBOT_SUPPRESS_DEPRECATION:-0}" != "1" ]; then
+    echo "DEPRECATED: scripts/winspy.sh is deprecated. Use the /inspect/window API or scripts/winebotctl inspect window." >&2
+fi
+
 # Source the X11 helper
 if [ -f "/scripts/lib/x11_env.sh" ]; then
     source "/scripts/lib/x11_env.sh"

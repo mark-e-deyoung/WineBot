@@ -162,8 +162,8 @@ WineBot provides helpers to simplify headless interaction:
 
 - **X11 Inspection:** `/automation/x11.sh` (list windows, focus, search)
 - **Robust Screenshots:** `/automation/screenshot.sh` (auto-detects X11 env)
-- **AutoHotkey Runner:** `/scripts/run-ahk.sh` (handles focus, logs, and wineboot)
-- **Windows Inspectors:** `/scripts/au3info.sh` and `/scripts/winspy.sh` (for inspecting controls)
+- **AutoHotkey Runner (legacy):** `/scripts/run-ahk.sh` (deprecated; use `/run/ahk` or `scripts/winebotctl run ahk`)
+- **Windows Inspectors (legacy):** `/scripts/au3info.sh` and `/scripts/winspy.sh` (deprecated; use `/inspect/window` or `scripts/winebotctl inspect window`)
 - **Internal API:** HTTP API for programmatic control (see `docs/api.md`).
 
 See [docs/debugging.md](docs/debugging.md) for details.

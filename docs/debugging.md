@@ -89,13 +89,17 @@ Use `/automation/x11.sh` (inside container) to inspect windows without manual en
 ```
 
 ### Running AutoHotkey with Focus + Logs
-Use `scripts/run-ahk.sh` to ensure Wine is ready, focus a target window, and capture logs:
+Preferred (API-first) usage:
+```bash
+scripts/winebotctl run ahk --file my_script.ahk --focus-title "My App"
+```
+Legacy wrapper (deprecated):
 ```bash
 /scripts/run-ahk.sh my_script.ahk --focus-title "My App" --log /tmp/ahk.log
 ```
 
 ### Windows Inspectors (Au3Info / WinSpy)
-You can inspect window controls (ClassNN, ID) using Windows tools running under Wine.
+You can inspect window controls (ClassNN, ID) using Windows tools running under Wine. These scripts are legacy; prefer the API inspection below.
 
 **Enable Inspectors:**
 Run the installer inside the container (only needs to be done once per container if not persisted):
@@ -103,7 +107,7 @@ Run the installer inside the container (only needs to be done once per container
 /scripts/install-inspectors.sh
 ```
 
-**Run Inspectors:**
+**Run Inspectors (legacy):**
 ```bash
 # AutoIt Window Info (pre-installed)
 /scripts/au3info.sh
