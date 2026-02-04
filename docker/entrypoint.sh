@@ -328,7 +328,7 @@ trap 'shutdown_notice' EXIT
 # 4. Start VNC/noVNC if requested
 if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
     echo "--> Starting VNC/noVNC services..."
-    VNC_ARGS=("-display" "$DISPLAY" "-forever" "-shared" "-rfbport" "${VNC_PORT:-5900}" "-bg" "-noxrecord" "-ncache" "0" "-cursor" "arrow")
+    VNC_ARGS=("-display" "$DISPLAY" "-forever" "-shared" "-rfbport" "${VNC_PORT:-5900}" "-bg" "-noxrecord" "-ncache" "0" "-cursor" "arrow" "-v")
     if [ -n "${VNC_PASSWORD:-}" ]; then
         mkdir -p "$HOME/.vnc"
         x11vnc -storepasswd "$VNC_PASSWORD" "$HOME/.vnc/passwd"
@@ -336,7 +336,7 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
     else
         VNC_ARGS+=("-nopw")
     fi
-    x11vnc "${VNC_ARGS[@]}" >/dev/null 2>&1
+    x11vnc "${VNC_ARGS[@]}" > "$SESSION_DIR/logs/x11vnc.log" 2>&1
     log_event "vnc_started" "x11vnc started"
 
     # Start noVNC (websockify)
