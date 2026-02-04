@@ -655,6 +655,34 @@ def lifecycle_events(limit: int = 100):
         pass
     return {"events": events}
 
+def openbox_control(action: str) -> Dict[str, Any]:
+    """Run an Openbox control action and log lifecycle events."""
+    session_dir = read_session_dir()
+    cmd = ["openbox", f"--{action}"]
+    append_lifecycle_event(session_dir, f"openbox_{action}_requested", f"Openbox {action} requested", source="api")
+    result = safe_command(cmd, timeout=3)
+    if result.get("ok"):
+        append_lifecycle_event(session_dir, f"openbox_{action}_ok", f"Openbox {action} completed", source="api")
+    else:
+        append_lifecycle_event(
+            session_dir,
+            f"openbox_{action}_failed",
+            f"Openbox {action} failed",
+            source="api",
+            extra=result,
+        )
+    return {"status": "ok" if result.get("ok") else "error", "action": action, "result": result}
+
+@app.post("/openbox/reconfigure")
+def openbox_reconfigure():
+    """Reload the Openbox configuration."""
+    return openbox_control("reconfigure")
+
+@app.post("/openbox/restart")
+def openbox_restart():
+    """Restart the Openbox window manager."""
+    return openbox_control("restart")
+
 @app.get("/sessions")
 def list_sessions(root: Optional[str] = None, limit: int = 100):
     """List available sessions on disk."""

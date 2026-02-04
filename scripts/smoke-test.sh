@@ -166,6 +166,9 @@ log "Checking Xvfb and openbox..."
 compose_exec headless winebot "pgrep -x Xvfb >/dev/null"
 compose_exec headless winebot "pgrep -x openbox >/dev/null"
 
+log "Validating Openbox menu commands..."
+compose_exec headless winebot "/scripts/openbox-menu-test.sh --run-x11 --run-wine"
+
 log "Checking window list..."
 window_list="$(compose_exec headless winebot "DISPLAY=:99 wmctrl -l")"
 window_count="$(echo "$window_list" | grep -v "^$" | wc -l)"
@@ -278,6 +281,118 @@ PY
   debug_proxy_container=""
 fi
 
+log "Running API smoke tests (inside container)..."
+compose_exec headless winebot "$(cat <<'EOF'
+    set -e
+    echo "Running Unit Tests..."
+    python3 -m pytest tests/test_api.py tests/test_auto_view.py tests/test_winebotctl.py tests/test_ui_dashboard.py
+
+    echo "Starting Server for Integration Check (Secured)..."
+    export API_TOKEN="smoke-secret"
+    export WINEBOT_RECORD="1"
+    API_PORT=18000
+    BASE_URL="http://localhost:${API_PORT}"
+    uvicorn api.server:app --host 0.0.0.0 --port ${API_PORT} > /tmp/uvicorn.log 2>&1 &
+    PID=$!
+    health_ok=0
+    for _ in $(seq 1 20); do
+        if curl -s --fail -H "X-API-Key: smoke-secret" "${BASE_URL}/health" >/dev/null; then
+            health_ok=1
+            break
+        fi
+        sleep 1
+    done
+
+    echo "Checking Health Endpoint (with Token)..."
+    if [ "$health_ok" = "1" ]; then
+        curl -s --fail -H "X-API-Key: smoke-secret" "${BASE_URL}/health" >/dev/null
+        echo " API Health OK"
+    else
+        echo " API Health Failed"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+
+    echo "Checking Health Subendpoints (with Token)..."
+    for ep in /health/system /health/x11 /health/windows /health/wine /health/tools /health/storage /health/recording; do
+        if curl -s --fail -H "X-API-Key: smoke-secret" "${BASE_URL}${ep}" >/dev/null; then
+            echo " ${ep} OK"
+        else
+            echo " ${ep} Failed"
+            cat /tmp/uvicorn.log
+            kill $PID
+            exit 1
+        fi
+    done
+
+    echo "Checking Inspect Window Endpoint (list_only)..."
+    if curl -s --fail -H "X-API-Key: smoke-secret" \
+        -H "Content-Type: application/json" \
+        -X POST "${BASE_URL}/inspect/window" \
+        -d '{"list_only":true}' | grep -q '"status":"success"'; then
+        echo " /inspect/window OK"
+    else
+        echo " /inspect/window Failed"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+
+    echo "Checking Screenshot Metadata (PNG + JSON)..."
+    curl -s --fail -H "X-API-Key: smoke-secret" \
+        -D /tmp/screenshot_headers.txt \
+        "${BASE_URL}/screenshot?label=smoke-metadata&tag=smoke-test" \
+        -o /dev/null
+    sleep 1
+    req_id=$(awk 'BEGIN{IGNORECASE=1} /^x-request-id:/ {print $2}' /tmp/screenshot_headers.txt | tr -d '\r')
+    if [ -z "$req_id" ]; then
+        echo " Missing X-Request-Id header"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+    meta_path=$(awk 'BEGIN{IGNORECASE=1} /^x-screenshot-metadata-path:/ {print $2}' /tmp/screenshot_headers.txt | tr -d '\r')
+    if [ -z "$meta_path" ]; then
+        echo " Missing X-Screenshot-Metadata-Path header"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+    if ! test -s "$meta_path"; then
+        echo " Missing screenshot JSON sidecar in container"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+    python3 /scripts/verify-screenshot-metadata.py --json "$meta_path" --req-id "$req_id" --tag smoke-test
+    if [ $? -ne 0 ]; then
+        echo " Screenshot metadata validation failed"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+    echo " Screenshot metadata OK"
+
+    echo "Checking Recording API state machine..."
+    BASE_URL="${BASE_URL}" API_TOKEN="smoke-secret" /scripts/recording-smoke-test.sh
+
+    echo "Checking winedbg API (default command)..."
+    if curl -s --fail -H "X-API-Key: smoke-secret" \
+        -H "Content-Type: application/json" \
+        -X POST "${BASE_URL}/run/winedbg" \
+        -d '{"path":"/wineprefix/drive_c/windows/system32/cmd.exe","mode":"default","command":"info proc"}' | grep -q '"status":"launched"'; then
+        echo " /run/winedbg OK"
+    else
+        echo " /run/winedbg Failed"
+        cat /tmp/uvicorn.log
+        kill $PID
+        exit 1
+    fi
+    kill $PID >/dev/null 2>&1 || true
+EOF
+)"
+
 if [ "$include_interactive" = "1" ]; then
   if service_running interactive winebot-interactive; then
     log "Interactive service already running."
@@ -308,108 +423,5 @@ for port in (5900, 6080):
         sock.close()
 PY"
 fi
-
-log "Running API smoke tests (inside container)..."
-compose_exec headless winebot "
-    set -e
-    echo 'Running Unit Tests...'
-    python3 -m pytest tests/test_api.py tests/test_auto_view.py tests/test_winebotctl.py tests/test_ui_dashboard.py
-    
-    echo 'Starting Server for Integration Check (Secured)...'
-    export API_TOKEN='smoke-secret'
-    export WINEBOT_RECORD='1'
-    API_PORT=18000
-    BASE_URL=\"http://localhost:\${API_PORT}\"
-    uvicorn api.server:app --host 0.0.0.0 --port \${API_PORT} > /tmp/uvicorn.log 2>&1 &
-    PID=\$!
-    sleep 5
-    
-    echo 'Checking Health Endpoint (with Token)...'
-    if curl -s --fail -H 'X-API-Key: smoke-secret' \"\${BASE_URL}/health\"; then
-        echo ' API Health OK'
-    else
-        echo ' API Health Failed'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-
-    echo 'Checking Health Subendpoints (with Token)...'
-    for ep in /health/system /health/x11 /health/windows /health/wine /health/tools /health/storage /health/recording; do
-        if curl -s --fail -H 'X-API-Key: smoke-secret' \"\${BASE_URL}\${ep}\" >/dev/null; then
-            echo \" \${ep} OK\"
-        else
-            echo \" \${ep} Failed\"
-            cat /tmp/uvicorn.log
-            kill \$PID
-            exit 1
-        fi
-    done
-
-    echo 'Checking Inspect Window Endpoint (list_only)...'
-    if curl -s --fail -H 'X-API-Key: smoke-secret' \\
-        -H 'Content-Type: application/json' \\
-        -X POST \"\${BASE_URL}/inspect/window\" \\
-        -d '{\"list_only\":true}' | grep -q '\"status\":\"success\"'; then
-        echo ' /inspect/window OK'
-    else
-        echo ' /inspect/window Failed'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-
-    echo 'Checking Screenshot Metadata (PNG + JSON)...'
-    curl -s --fail -H 'X-API-Key: smoke-secret' \\
-        -D /tmp/screenshot_headers.txt \\
-        \"\${BASE_URL}/screenshot?label=smoke-metadata&tag=smoke-test\" \\
-        -o /dev/null
-    sleep 1
-    req_id=\$(awk 'BEGIN{IGNORECASE=1} /^x-request-id:/ {print \$2}' /tmp/screenshot_headers.txt | tr -d '\\r')
-    if [ -z \"\$req_id\" ]; then
-        echo ' Missing X-Request-Id header'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-    meta_path=\$(awk 'BEGIN{IGNORECASE=1} /^x-screenshot-metadata-path:/ {print \$2}' /tmp/screenshot_headers.txt | tr -d '\\r')
-    if [ -z \"\$meta_path\" ]; then
-        echo ' Missing X-Screenshot-Metadata-Path header'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-    if ! test -s \"\$meta_path\"; then
-        echo ' Missing screenshot JSON sidecar in container'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-    python3 /scripts/verify-screenshot-metadata.py --json \"\$meta_path\" --req-id \"\$req_id\" --tag smoke-test
-    if [ \$? -ne 0 ]; then
-        echo ' Screenshot metadata validation failed'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-    echo ' Screenshot metadata OK'
-
-    echo 'Checking Recording API state machine...'
-    BASE_URL=\"\${BASE_URL}\" API_TOKEN='smoke-secret' /scripts/recording-smoke-test.sh
-
-    echo 'Checking winedbg API (default command)...'
-    if curl -s --fail -H 'X-API-Key: smoke-secret' \\
-        -H 'Content-Type: application/json' \\
-        -X POST \"\${BASE_URL}/run/winedbg\" \\
-        -d '{\"path\":\"/wineprefix/drive_c/windows/system32/cmd.exe\",\"mode\":\"default\",\"command\":\"info proc\"}' | grep -q '\"status\":\"launched\"'; then
-        echo ' /run/winedbg OK'
-    else
-        echo ' /run/winedbg Failed'
-        cat /tmp/uvicorn.log
-        kill \$PID
-        exit 1
-    fi
-    kill \$PID >/dev/null 2>&1 || true
-"
 
 log "Smoke test complete."

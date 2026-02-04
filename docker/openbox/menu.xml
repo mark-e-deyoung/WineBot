@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="WineBot">
+    <separator label="Wine apps" />
+    <item label="Windows Explorer">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Windows Explorer" wine explorer</command>
+      </action>
+    </item>
+    <item label="Command Prompt">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Command Prompt" wine cmd /k</command>
+      </action>
+    </item>
+    <item label="Notepad">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Notepad" wine notepad</command>
+      </action>
+    </item>
+    <item label="Registry Editor">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Registry Editor" wine regedit</command>
+      </action>
+    </item>
+    <item label="Winecfg">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Winecfg" winecfg</command>
+      </action>
+    </item>
+    <item label="Task Manager">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Task Manager" wine taskmgr</command>
+      </action>
+    </item>
+
+    <separator label="Tools" />
+    <item label="Take Screenshot (session)">
+      <action name="Execute">
+        <command>/scripts/openbox-run-wine.sh "Take Screenshot" /automation/screenshot.sh</command>
+      </action>
+    </item>
+    <item label="X11: Window Info (xwininfo)">
+      <action name="Execute">
+        <command>/scripts/openbox-run-x11.sh "X11 Window Info" xwininfo</command>
+      </action>
+    </item>
+    <item label="X11: Window Properties (xprop)">
+      <action name="Execute">
+        <command>/scripts/openbox-run-x11.sh "X11 Window Properties" xprop</command>
+      </action>
+    </item>
+    <item label="X11: Display Info (xdpyinfo)">
+      <action name="Execute">
+        <command>/scripts/openbox-run-x11.sh "X11 Display Info" xdpyinfo</command>
+      </action>
+    </item>
+    <item label="Reload Openbox Config">
+      <action name="Execute">
+        <command>/scripts/openbox-control.sh reconfigure</command>
+      </action>
+    </item>
+    <item label="Restart Openbox">
+      <action name="Execute">
+        <command>/scripts/openbox-control.sh restart</command>
+      </action>
+    </item>
+
+    <separator />
+    <item label="Exit Openbox">
+      <action name="Exit" />
+    </item>
+  </menu>
+</openbox_menu>

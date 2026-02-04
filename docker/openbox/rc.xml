@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+    <focusLast>yes</focusLast>
+    <underMouse>no</underMouse>
+  </focus>
+
+  <desktops>
+    <number>1</number>
+    <firstdesk>1</firstdesk>
+    <names>
+      <name>Desktop</name>
+    </names>
+  </desktops>
+
+  <mouse>
+    <dragThreshold>1</dragThreshold>
+    <doubleClickTime>200</doubleClickTime>
+    <screenEdgeWarpTime>0</screenEdgeWarpTime>
+    <context name="Titlebar">
+      <mousebind button="Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Left" action="Drag">
+        <action name="Move"/>
+      </mousebind>
+      <mousebind button="DoubleLeft" action="DoubleClick">
+        <action name="ToggleMaximize"/>
+      </mousebind>
+    </context>
+    <context name="Frame">
+      <mousebind button="Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Left" action="Drag">
+        <action name="Move"/>
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Right" action="Drag">
+        <action name="Resize"/>
+      </mousebind>
+    </context>
+    <context name="Root">
+      <mousebind button="Right" action="Press">
+        <action name="ShowMenu">
+          <menu>root-menu</menu>
+        </action>
+      </mousebind>
+    </context>
+  </mouse>
+
+  <keyboard>
+    <keybind key="A-Tab">
+      <action name="NextWindow">
+        <raise>yes</raise>
+        <focus>yes</focus>
+        <dialog>yes</dialog>
+      </action>
+    </keybind>
+    <keybind key="A-S-Tab">
+      <action name="PreviousWindow">
+        <raise>yes</raise>
+        <focus>yes</focus>
+        <dialog>yes</dialog>
+      </action>
+    </keybind>
+    <keybind key="Print">
+      <action name="Execute">
+        <command>/automation/screenshot.sh</command>
+      </action>
+    </keybind>
+    <keybind key="C-A-R">
+      <action name="Execute">
+        <command>/scripts/openbox-control.sh reconfigure</command>
+      </action>
+    </keybind>
+    <keybind key="C-A-S-R">
+      <action name="Execute">
+        <command>/scripts/openbox-control.sh restart</command>
+      </action>
+    </keybind>
+  </keyboard>
+</openbox_config>

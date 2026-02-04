@@ -54,6 +54,7 @@ ENV WINEPREFIX=/wineprefix \
     NOVNC_PORT=6080
 
 COPY automation /automation
+COPY docker/openbox/ /etc/xdg/openbox/
 COPY scripts /scripts
 COPY api /api
 COPY tests /tests

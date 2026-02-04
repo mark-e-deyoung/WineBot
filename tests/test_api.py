@@ -149,7 +149,7 @@ def test_ui_dashboard_served(auth_headers):
         assert "id=\"control-panel\"" in response.text
         assert "id=\"btn-shutdown\"" in response.text
         assert "id=\"btn-poweroff\"" in response.text
-        assert "id=\"lifecycle-events\"" in response.text
+        assert "id=\"log-console\"" in response.text
 
 def test_ui_dashboard_no_token_required():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
@@ -382,6 +382,26 @@ def test_sessions_resume(tmp_path, auth_headers):
             assert payload["status"] in ("resumed", "already_active")
             assert Path(session_file).read_text().strip() == str(session_dir)
             assert os.path.islink(wineprefix / "drive_c" / "users" / "winebot")
+
+@patch("api.server.safe_command")
+def test_openbox_reconfigure(mock_safe, auth_headers):
+    mock_safe.return_value = {"ok": True, "stdout": "", "stderr": ""}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.post("/openbox/reconfigure", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ok"
+        assert payload["action"] == "reconfigure"
+
+@patch("api.server.safe_command")
+def test_openbox_restart(mock_safe, auth_headers):
+    mock_safe.return_value = {"ok": True, "stdout": "", "stderr": ""}
+    with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
+        response = client.post("/openbox/restart", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ok"
+        assert payload["action"] == "restart"
 
 @patch("subprocess.run")
 @patch("builtins.open", new_callable=MagicMock)

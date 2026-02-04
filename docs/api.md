@@ -46,6 +46,8 @@ Idempotent mode is supported (see `--idempotent` / `--no-idempotent`) so repeat 
 | GET | `/lifecycle/status` | Lifecycle status for core components |
 | GET | `/lifecycle/events` | Recent lifecycle events |
 | POST | `/lifecycle/shutdown` | Gracefully stop the container |
+| POST | `/openbox/reconfigure` | Reload Openbox config |
+| POST | `/openbox/restart` | Restart Openbox |
 | GET | `/sessions` | List session directories |
 | POST | `/sessions/suspend` | Suspend a session (keep container alive) |
 | POST | `/sessions/resume` | Resume a session directory |
@@ -113,6 +115,14 @@ Gracefully stop the recorder and UI components, shut down Wine, and terminate th
   - `power_off` (optional): Immediately terminate the container (unsafe; skips graceful shutdown).
 - **Response:** `{"status":"shutting_down","delay_seconds":0.5,"wine_shutdown":{...},"component_shutdown":{...}}`
 
+#### `POST /openbox/reconfigure`
+Reload the Openbox configuration.
+- **Response:** `{"status":"ok","action":"reconfigure","result":{...}}`
+
+#### `POST /openbox/restart`
+Restart the Openbox window manager.
+- **Response:** `{"status":"ok","action":"restart","result":{...}}`
+
 #### `GET /sessions`
 List session directories in the session root.
 - **Parameters:**
@@ -140,7 +150,7 @@ Resume an existing session directory.
 
 #### `GET /ui`
 Serve the built‑in dashboard (noVNC + API controls). If `API_TOKEN` is set, enter it in the UI to authenticate API requests.
-- Includes lifecycle controls (graceful shutdown and power off), component status badges, and recent lifecycle events.
+- Includes lifecycle controls (graceful shutdown and power off), component status badges, and an activity log console.
 
 #### `GET /windows`
 List currently visible windows.

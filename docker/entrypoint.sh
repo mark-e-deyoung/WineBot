@@ -41,9 +41,6 @@ Xvfb "$DISPLAY" -screen 0 "$SCREEN" -ac +extension RANDR >/dev/null 2>&1 &
 XVFB_PID=$!
 sleep 1 # Give Xvfb a moment to start
 
-# 3. Start Window Manager (Openbox)
-openbox >/dev/null 2>&1 &
-
 # --- Session Setup ---
 SESSION_ROOT="${WINEBOT_SESSION_ROOT:-/artifacts/sessions}"
 RESUMED="0"
@@ -226,6 +223,21 @@ with open(path, "a") as f:
     f.write(json.dumps(event) + "\n")
 PY
 }
+
+# Configure Openbox (single desktop + menu)
+OPENBOX_CONFIG_DIR="${HOME}/.config/openbox"
+mkdir -p "$OPENBOX_CONFIG_DIR"
+if [ -f "/etc/xdg/openbox/rc.xml" ] && [ ! -f "${OPENBOX_CONFIG_DIR}/rc.xml" ]; then
+    cp "/etc/xdg/openbox/rc.xml" "${OPENBOX_CONFIG_DIR}/rc.xml"
+    log_event "openbox_config_loaded" "Openbox rc.xml loaded"
+fi
+if [ -f "/etc/xdg/openbox/menu.xml" ] && [ ! -f "${OPENBOX_CONFIG_DIR}/menu.xml" ]; then
+    cp "/etc/xdg/openbox/menu.xml" "${OPENBOX_CONFIG_DIR}/menu.xml"
+    log_event "openbox_menu_loaded" "Openbox menu.xml loaded"
+fi
+
+# Start Window Manager (Openbox)
+openbox >/dev/null 2>&1 &
 
 if [ "$RESUMED" = "1" ]; then
     log_event "session_resumed" "Session resumed"
