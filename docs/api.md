@@ -18,6 +18,18 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 - `/wineprefix`
 - `/tmp`
 
+## Unified CLI
+
+Use `scripts/winebotctl` for a single CLI entrypoint to the API.
+
+Examples:
+- `scripts/winebotctl health`
+- `scripts/winebotctl sessions list`
+- `scripts/winebotctl recording start --session-root /artifacts/sessions`
+- `scripts/winebotctl api POST /sessions/suspend --json '{"shutdown_wine":true}'`
+
+Idempotent mode is supported (see `--idempotent` / `--no-idempotent`) so repeat invocations can safely reuse the same response when desired.
+
 ## Endpoints
 
 ### Quick Reference

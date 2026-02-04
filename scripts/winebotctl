@@ -1,0 +1,977 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${WINEBOT_API_URL:-${WINEBOT_BASE_URL:-${API_URL:-http://localhost:8000}}}"
+API_TOKEN="${WINEBOT_API_TOKEN:-${API_TOKEN:-}}"
+IDEMPOTENT_DEFAULT="${WINEBOT_IDEMPOTENT:-1}"
+CACHE_FILE="${WINEBOT_IDEMPOTENT_CACHE:-/tmp/winebotctl-idempotent.json}"
+
+usage() {
+  cat <<'EOF'
+WineBot unified CLI (API-first)
+
+Usage:
+  scripts/winebotctl [global options] <command> [args]
+
+Global options:
+  --base-url URL        API base URL (default: http://localhost:8000)
+  --token TOKEN         API token (default: API_TOKEN/WINEBOT_API_TOKEN)
+  --no-token            Clear token (unauthenticated)
+  --idempotent          Enable idempotent mode (default: on)
+  --no-idempotent       Disable idempotent mode
+  --cache-file PATH     Idempotent cache file (default: /tmp/winebotctl-idempotent.json)
+  -h, --help            Show help
+
+Commands:
+  api METHOD PATH [--json JSON]          Generic API call
+  health [sub]                            /health or /health/<sub>
+  lifecycle status|events|shutdown [opts]
+  sessions list|suspend|resume [opts]
+  recording start|pause|resume|stop|status [opts]
+  screenshot [--label L] [--tag T] [--out FILE]
+  windows list|active|search|focus [opts]
+  apps list|run [opts]
+  input click X Y
+  run ahk|autoit|python|winedbg [opts]
+  inspect window [opts]
+
+Examples:
+  scripts/winebotctl health
+  scripts/winebotctl sessions list
+  scripts/winebotctl recording start --session-root /artifacts/sessions
+  scripts/winebotctl api POST /sessions/suspend --json '{"shutdown_wine":true}'
+EOF
+}
+
+die() {
+  echo "ERROR: $*" >&2
+  exit 1
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --base-url)
+      BASE_URL="$2"
+      shift 2
+      ;;
+    --token)
+      API_TOKEN="$2"
+      shift 2
+      ;;
+    --no-token)
+      API_TOKEN=""
+      shift
+      ;;
+    --idempotent)
+      IDEMPOTENT_DEFAULT="1"
+      shift
+      ;;
+    --no-idempotent)
+      IDEMPOTENT_DEFAULT="0"
+      shift
+      ;;
+    --cache-file)
+      CACHE_FILE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+command="${1:-}"
+shift || true
+
+if [ -z "$command" ]; then
+  usage
+  exit 1
+fi
+
+cache_get() {
+  python3 - <<'PY' "$CACHE_FILE" "$1"
+import json
+import os
+import sys
+
+path = sys.argv[1]
+key = sys.argv[2]
+if not os.path.exists(path):
+    raise SystemExit(1)
+try:
+    with open(path, "r") as f:
+        data = json.load(f)
+except Exception:
+    raise SystemExit(1)
+item = data.get(key)
+if not item:
+    raise SystemExit(1)
+status = item.get("status", "")
+body = item.get("body", "")
+print(status)
+print(body)
+PY
+}
+
+cache_put() {
+  CACHE_KEY="$1" CACHE_STATUS="$2" CACHE_BODY="$3" CACHE_PATH="$CACHE_FILE" python3 - <<'PY'
+import json
+import os
+
+path = os.environ["CACHE_PATH"]
+key = os.environ["CACHE_KEY"]
+status = int(os.environ.get("CACHE_STATUS", "0") or 0)
+body = os.environ.get("CACHE_BODY", "")
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+data[key] = {"status": status, "body": body}
+with open(path, "w") as f:
+    json.dump(data, f)
+PY
+}
+
+make_cache_key() {
+  printf '%s' "$1|$2|$3" | sha256sum | awk '{print $1}'
+}
+
+api_request() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local idempotent="${4:-$IDEMPOTENT_DEFAULT}"
+  local url="${BASE_URL}${path}"
+  local cache_key=""
+
+  if [ "$idempotent" = "1" ] && [ "$method" != "GET" ]; then
+    cache_key="$(make_cache_key "$method" "$path" "$body")"
+    if cached="$(cache_get "$cache_key" 2>/dev/null)"; then
+      printf '%s\n' "$cached"
+      return 0
+    fi
+  fi
+
+  local response
+  local headers=()
+  if [ -n "$API_TOKEN" ]; then
+    headers+=(-H "X-API-Key: $API_TOKEN")
+  fi
+  if [ -n "$body" ]; then
+    headers+=(-H "Content-Type: application/json")
+    response="$(curl -sS "${headers[@]}" -X "$method" "$url" -d "$body" -w '\n__HTTP_STATUS__:%{http_code}__')"
+  else
+    response="$(curl -sS "${headers[@]}" -X "$method" "$url" -w '\n__HTTP_STATUS__:%{http_code}__')"
+  fi
+
+  local status="${response##*__HTTP_STATUS__:}"
+  status="${status%__}"
+  local payload="${response%__HTTP_STATUS__:*}"
+
+  if [ -n "$cache_key" ] && [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+    cache_put "$cache_key" "$status" "$payload" >/dev/null 2>&1 || true
+  fi
+
+  printf '%s\n' "$status"
+  printf '%s\n' "$payload"
+}
+
+json_from_kv() {
+  python3 - <<'PY' "$@"
+import json
+import sys
+
+data = {}
+for arg in sys.argv[1:]:
+    if "=" not in arg:
+        continue
+    key, raw = arg.split("=", 1)
+    if raw == "":
+        continue
+    try:
+        value = json.loads(raw)
+    except Exception:
+        value = raw
+    if value == "":
+        continue
+    data[key] = value
+print(json.dumps(data))
+PY
+}
+
+require_arg() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    die "Missing required argument: $name"
+  fi
+}
+
+response_status() {
+  printf '%s\n' "$1" | head -n 1
+}
+
+response_body() {
+  printf '%s\n' "$1" | tail -n +2
+}
+
+case "$command" in
+  api)
+    method="${1:-}"
+    path="${2:-}"
+    shift 2 || true
+    require_arg "METHOD" "$method"
+    require_arg "PATH" "$path"
+    json_body=""
+    idempotent="$IDEMPOTENT_DEFAULT"
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --json)
+          json_body="$2"
+          shift 2
+          ;;
+        --no-idempotent)
+          idempotent="0"
+          shift
+          ;;
+        --idempotent)
+          idempotent="1"
+          shift
+          ;;
+        *)
+          die "Unknown api option: $1"
+          ;;
+      esac
+    done
+    resp="$(api_request "$method" "$path" "$json_body" "$idempotent")"
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  health)
+    sub="${1:-}"
+    path="/health"
+    if [ -n "$sub" ]; then
+      path="/health/${sub}"
+    fi
+    resp="$(api_request GET "$path")"
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  lifecycle)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      status)
+        resp="$(api_request GET "/lifecycle/status")"
+        ;;
+      events)
+        limit="100"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit)
+              limit="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown lifecycle events option: $1"
+              ;;
+          esac
+        done
+        resp="$(api_request GET "/lifecycle/events?limit=${limit}")"
+        ;;
+      shutdown)
+        delay=""
+        wine_shutdown="true"
+        power_off="false"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --delay)
+              delay="$2"
+              shift 2
+              ;;
+            --no-wine)
+              wine_shutdown="false"
+              shift
+              ;;
+            --power-off)
+              power_off="true"
+              shift
+              ;;
+            *)
+              die "Unknown lifecycle shutdown option: $1"
+              ;;
+          esac
+        done
+        path="/lifecycle/shutdown"
+        if [ "$power_off" = "true" ]; then
+          path="${path}?power_off=true"
+        fi
+        if [ -n "$delay" ]; then
+          if [[ "$path" == *"?"* ]]; then
+            path="${path}&delay=${delay}"
+          else
+            path="${path}?delay=${delay}"
+          fi
+        fi
+        if [ "$wine_shutdown" = "false" ]; then
+          if [[ "$path" == *"?"* ]]; then
+            path="${path}&wine_shutdown=false"
+          else
+            path="${path}?wine_shutdown=false"
+          fi
+        fi
+        resp="$(api_request POST "$path" "" "0")"
+        ;;
+      *)
+        die "Unknown lifecycle command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  sessions)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      list)
+        root=""
+        limit="100"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --root)
+              root="$2"
+              shift 2
+              ;;
+            --limit)
+              limit="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown sessions list option: $1"
+              ;;
+          esac
+        done
+        path="/sessions?limit=${limit}"
+        if [ -n "$root" ]; then
+          path="${path}&root=${root}"
+        fi
+        resp="$(api_request GET "$path")"
+        ;;
+      suspend)
+        session_id=""
+        session_dir=""
+        session_root=""
+        stop_recording="true"
+        shutdown_wine="true"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --id)
+              session_id="$2"
+              shift 2
+              ;;
+            --dir)
+              session_dir="$2"
+              shift 2
+              ;;
+            --root)
+              session_root="$2"
+              shift 2
+              ;;
+            --no-recording-stop)
+              stop_recording="false"
+              shift
+              ;;
+            --no-wine-shutdown)
+              shutdown_wine="false"
+              shift
+              ;;
+            *)
+              die "Unknown sessions suspend option: $1"
+              ;;
+          esac
+        done
+        json_body="$(json_from_kv \
+          "session_id=${session_id}" \
+          "session_dir=${session_dir}" \
+          "session_root=${session_root}" \
+          "stop_recording=${stop_recording}" \
+          "shutdown_wine=${shutdown_wine}" \
+        )"
+        resp="$(api_request POST "/sessions/suspend" "$json_body" "0")"
+        ;;
+      resume)
+        session_id=""
+        session_dir=""
+        session_root=""
+        stop_recording="true"
+        restart_wine="true"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --id)
+              session_id="$2"
+              shift 2
+              ;;
+            --dir)
+              session_dir="$2"
+              shift 2
+              ;;
+            --root)
+              session_root="$2"
+              shift 2
+              ;;
+            --no-recording-stop)
+              stop_recording="false"
+              shift
+              ;;
+            --no-restart-wine)
+              restart_wine="false"
+              shift
+              ;;
+            *)
+              die "Unknown sessions resume option: $1"
+              ;;
+          esac
+        done
+        json_body="$(json_from_kv \
+          "session_id=${session_id}" \
+          "session_dir=${session_dir}" \
+          "session_root=${session_root}" \
+          "stop_recording=${stop_recording}" \
+          "restart_wine=${restart_wine}" \
+        )"
+        resp="$(api_request POST "/sessions/resume" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown sessions command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  recording)
+    sub="${1:-}"
+    shift || true
+    get_state() {
+      local state_resp
+      local body
+      state_resp="$(api_request GET "/health/recording")"
+      body="$(response_body "$state_resp")"
+      python3 - <<'PY' "$body" || true
+import json
+import sys
+try:
+    raw = sys.argv[1]
+    data = json.loads(raw) if raw else {}
+except Exception:
+    print("")
+else:
+    print(data.get("state", ""))
+PY
+    }
+    case "$sub" in
+      status)
+        resp="$(api_request GET "/health/recording")"
+        ;;
+      start)
+        session_root=""
+        new_session="false"
+        display=""
+        resolution=""
+        fps=""
+        label=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --session-root)
+              session_root="$2"
+              shift 2
+              ;;
+            --new-session)
+              new_session="true"
+              shift
+              ;;
+            --display)
+              display="$2"
+              shift 2
+              ;;
+            --resolution)
+              resolution="$2"
+              shift 2
+              ;;
+            --fps)
+              fps="$2"
+              shift 2
+              ;;
+            --label)
+              label="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown recording start option: $1"
+              ;;
+          esac
+        done
+        state="$(get_state)"
+        if [ "$state" = "recording" ]; then
+          echo '{"status":"already_recording"}'
+          exit 0
+        fi
+        json_body="$(json_from_kv \
+          "session_root=${session_root}" \
+          "new_session=${new_session}" \
+          "display=${display}" \
+          "resolution=${resolution}" \
+          "fps=${fps}" \
+          "session_label=${label}" \
+        )"
+        resp="$(api_request POST "/recording/start" "$json_body" "0")"
+        ;;
+      pause)
+        state="$(get_state)"
+        if [ "$state" = "paused" ] || [ "$state" = "idle" ]; then
+          echo '{"status":"already_paused"}'
+          exit 0
+        fi
+        resp="$(api_request POST "/recording/pause" "" "0")"
+        ;;
+      resume)
+        state="$(get_state)"
+        if [ "$state" = "recording" ]; then
+          echo '{"status":"already_recording"}'
+          exit 0
+        fi
+        if [ "$state" = "idle" ]; then
+          echo '{"status":"idle"}'
+          exit 0
+        fi
+        resp="$(api_request POST "/recording/resume" "" "0")"
+        ;;
+      stop)
+        state="$(get_state)"
+        if [ "$state" = "idle" ]; then
+          echo '{"status":"already_stopped"}'
+          exit 0
+        fi
+        resp="$(api_request POST "/recording/stop" "" "0")"
+        ;;
+      *)
+        die "Unknown recording command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  screenshot)
+    label=""
+    tag=""
+    out=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --label)
+          label="$2"
+          shift 2
+          ;;
+        --tag)
+          tag="$2"
+          shift 2
+          ;;
+        --out)
+          out="$2"
+          shift 2
+          ;;
+        *)
+          die "Unknown screenshot option: $1"
+          ;;
+      esac
+    done
+    if [ -z "$out" ]; then
+      out="/tmp/winebot_$(date +%s).png"
+    fi
+    url="${BASE_URL}/screenshot"
+    query=""
+    if [ -n "$label" ]; then
+      query="label=${label}"
+    fi
+    if [ -n "$tag" ]; then
+      if [ -n "$query" ]; then
+        query="${query}&tag=${tag}"
+      else
+        query="tag=${tag}"
+      fi
+    fi
+    if [ -n "$query" ]; then
+      url="${url}?${query}"
+    fi
+    headers_file="$(mktemp)"
+    headers=()
+    if [ -n "$API_TOKEN" ]; then
+      headers+=(-H "X-API-Key: $API_TOKEN")
+    fi
+    curl -sS "${headers[@]}" -D "$headers_file" "$url" -o "$out"
+    meta_path="$(awk 'BEGIN{IGNORECASE=1} /^x-screenshot-metadata-path:/ {print $2}' "$headers_file" | tr -d '\r')"
+    req_id="$(awk 'BEGIN{IGNORECASE=1} /^x-request-id:/ {print $2}' "$headers_file" | tr -d '\r')"
+    rm -f "$headers_file"
+    echo "{\"status\":\"saved\",\"file\":\"${out}\",\"metadata_path\":\"${meta_path}\",\"request_id\":\"${req_id}\"}"
+    ;;
+
+  windows)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      list)
+        resp="$(api_request GET "/windows")"
+        ;;
+      active)
+        resp="$(api_request GET "/windows/active")"
+        ;;
+      search)
+        name="${1:-}"
+        require_arg "name" "$name"
+        resp="$(api_request GET "/windows/search?name=${name}")"
+        ;;
+      focus)
+        win_id="${1:-}"
+        require_arg "id" "$win_id"
+        json_body="$(json_from_kv "window_id=${win_id}")"
+        resp="$(api_request POST "/windows/focus" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown windows command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  apps)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      list)
+        pattern=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --pattern)
+              pattern="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown apps list option: $1"
+              ;;
+          esac
+        done
+        path="/apps"
+        if [ -n "$pattern" ]; then
+          path="${path}?pattern=${pattern}"
+        fi
+        resp="$(api_request GET "$path")"
+        ;;
+      run)
+        app_path="${1:-}"
+        shift || true
+        require_arg "path" "$app_path"
+        args=""
+        detach="false"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --args)
+              args="$2"
+              shift 2
+              ;;
+            --detach)
+              detach="true"
+              shift
+              ;;
+            *)
+              die "Unknown apps run option: $1"
+              ;;
+          esac
+        done
+        json_body="$(json_from_kv "path=${app_path}" "args=${args}" "detach=${detach}")"
+        resp="$(api_request POST "/apps/run" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown apps command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  input)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      click)
+        x="${1:-}"
+        y="${2:-}"
+        require_arg "x" "$x"
+        require_arg "y" "$y"
+        json_body="$(json_from_kv "x=${x}" "y=${y}")"
+        resp="$(api_request POST "/input/mouse/click" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown input command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  run)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      ahk|autoit)
+        script=""
+        file=""
+        focus_title=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --script)
+              script="$2"
+              shift 2
+              ;;
+            --file)
+              file="$2"
+              shift 2
+              ;;
+            --focus-title)
+              focus_title="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown run $sub option: $1"
+              ;;
+          esac
+        done
+        if [ -n "$file" ]; then
+          script="$(cat "$file")"
+        fi
+        require_arg "script" "$script"
+        json_body="$(json_from_kv "script=${script}" "focus_title=${focus_title}")"
+        endpoint="/run/${sub}"
+        resp="$(api_request POST "$endpoint" "$json_body" "0")"
+        ;;
+      python)
+        script=""
+        file=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --script)
+              script="$2"
+              shift 2
+              ;;
+            --file)
+              file="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown run python option: $1"
+              ;;
+          esac
+        done
+        if [ -n "$file" ]; then
+          script="$(cat "$file")"
+        fi
+        require_arg "script" "$script"
+        json_body="$(json_from_kv "script=${script}")"
+        resp="$(api_request POST "/run/python" "$json_body" "0")"
+        ;;
+      winedbg)
+        app_path="${1:-}"
+        shift || true
+        require_arg "path" "$app_path"
+        args=""
+        detach="false"
+        mode=""
+        port=""
+        no_start="false"
+        command=""
+        script=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --args)
+              args="$2"
+              shift 2
+              ;;
+            --detach)
+              detach="true"
+              shift
+              ;;
+            --mode)
+              mode="$2"
+              shift 2
+              ;;
+            --port)
+              port="$2"
+              shift 2
+              ;;
+            --no-start)
+              no_start="true"
+              shift
+              ;;
+            --command)
+              command="$2"
+              shift 2
+              ;;
+            --script)
+              script="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown run winedbg option: $1"
+              ;;
+          esac
+        done
+        json_body="$(json_from_kv \
+          "path=${app_path}" \
+          "args=${args}" \
+          "detach=${detach}" \
+          "mode=${mode}" \
+          "port=${port}" \
+          "no_start=${no_start}" \
+          "command=${command}" \
+          "script=${script}" \
+        )"
+        resp="$(api_request POST "/run/winedbg" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown run command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  inspect)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      window)
+        list_only="false"
+        include_empty="false"
+        include_controls="true"
+        title=""
+        text=""
+        handle=""
+        max_controls=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --list)
+              list_only="true"
+              shift
+              ;;
+            --include-empty)
+              include_empty="true"
+              shift
+              ;;
+            --no-controls)
+              include_controls="false"
+              shift
+              ;;
+            --title)
+              title="$2"
+              shift 2
+              ;;
+            --text)
+              text="$2"
+              shift 2
+              ;;
+            --handle)
+              handle="$2"
+              shift 2
+              ;;
+            --max-controls)
+              max_controls="$2"
+              shift 2
+              ;;
+            *)
+              die "Unknown inspect window option: $1"
+              ;;
+          esac
+        done
+        json_body="$(json_from_kv \
+          "list_only=${list_only}" \
+          "include_empty=${include_empty}" \
+          "include_controls=${include_controls}" \
+          "title=${title}" \
+          "text=${text}" \
+          "handle=${handle}" \
+          "max_controls=${max_controls}" \
+        )"
+        resp="$(api_request POST "/inspect/window" "$json_body" "0")"
+        ;;
+      *)
+        die "Unknown inspect command: $sub"
+        ;;
+    esac
+    status="$(response_status "$resp")"
+    body="$(response_body "$resp")"
+    if [ "$status" -ge 400 ]; then
+      echo "$body" >&2
+      exit 1
+    fi
+    printf '%s\n' "$body"
+    ;;
+
+  *)
+    die "Unknown command: $command"
+    ;;
+esac

@@ -145,6 +145,19 @@
       font-size: 0.9rem;
     }
 
+    textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0d1418;
+      color: var(--text);
+      font-size: 0.82rem;
+      font-family: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", monospace;
+      min-height: 120px;
+      resize: vertical;
+    }
+
     select {
       width: 100%;
       padding: 8px 10px;
@@ -198,6 +211,75 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+    }
+
+    .api-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .api-row select {
+      flex: 0 0 90px;
+    }
+
+    .api-row input {
+      flex: 1;
+    }
+
+    .api-templates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: #0f171d;
+      color: var(--muted);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    .code-block {
+      margin-top: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0d1418;
+      padding: 10px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", monospace;
+      font-size: 0.76rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 220px;
+      overflow: auto;
+      color: var(--muted);
+    }
+
+    .code-block.ok {
+      border-color: rgba(77, 208, 161, 0.35);
+      color: var(--text);
+    }
+
+    .code-block.error {
+      border-color: rgba(255, 107, 107, 0.4);
+      color: var(--danger);
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .toggle input {
+      accent-color: var(--accent);
     }
 
     .badge {
@@ -377,6 +459,45 @@
       </div>
 
       <div class="panel-section">
+        <div class="section-title">API Console</div>
+        <div class="api-row">
+          <select id="api-method">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+          </select>
+          <input id="api-path" type="text" placeholder="/health" />
+        </div>
+        <label for="api-body">JSON Body (optional)</label>
+        <textarea id="api-body" rows="6" placeholder='{"key":"value"}'></textarea>
+        <div class="button-row" style="justify-content: space-between; align-items: center;">
+          <div class="button-row">
+            <button id="api-send">Send</button>
+            <button id="api-send-force" class="secondary">Force Send</button>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="api-idempotent" checked />
+            <span>Idempotent</span>
+          </label>
+        </div>
+        <div class="api-templates">
+          <button class="chip" data-api-template="health">/health</button>
+          <button class="chip" data-api-template="sessions">/sessions</button>
+          <button class="chip" data-api-template="suspend">Suspend session</button>
+          <button class="chip" data-api-template="resume">Resume session</button>
+          <button class="chip" data-api-template="record-start">Record start</button>
+          <button class="chip" data-api-template="record-stop">Record stop</button>
+          <button class="chip" data-api-template="lifecycle">/lifecycle/status</button>
+          <button class="chip" data-api-template="shutdown">Shutdown</button>
+          <button class="chip" data-api-template="windows">/windows</button>
+          <button class="chip" data-api-template="apps">/apps</button>
+          <button class="chip" data-api-template="inspect">Inspect window</button>
+        </div>
+        <div id="api-response" class="code-block">Response: waiting…</div>
+      </div>
+
+      <div class="panel-section">
         <div class="section-title">Lifecycle</div>
         <div class="button-row">
           <button id="btn-shutdown" class="warn">Graceful Shutdown</button>
@@ -450,6 +571,14 @@
     const recordStopBtn = document.getElementById("btn-record-stop");
     const recordStatus = document.getElementById("recording-status");
     const recordingPanel = document.getElementById("recording-panel");
+    const apiMethodSelect = document.getElementById("api-method");
+    const apiPathInput = document.getElementById("api-path");
+    const apiBodyInput = document.getElementById("api-body");
+    const apiSendBtn = document.getElementById("api-send");
+    const apiSendForceBtn = document.getElementById("api-send-force");
+    const apiIdempotentToggle = document.getElementById("api-idempotent");
+    const apiResponse = document.getElementById("api-response");
+    const apiTemplateButtons = document.querySelectorAll("[data-api-template]");
     const lifecycleStatus = document.getElementById("lifecycle-status");
     const lifecycleSession = document.getElementById("lifecycle-session");
     const lifecycleEvents = document.getElementById("lifecycle-events");
@@ -844,6 +973,93 @@
       }
     }
 
+    const API_CONSOLE_CACHE_KEY = "winebot_api_console_cache";
+
+    function getApiConsoleCache() {
+      try {
+        const raw = sessionStorage.getItem(API_CONSOLE_CACHE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (err) {
+        return {};
+      }
+    }
+
+    function setApiConsoleCache(cache) {
+      try {
+        sessionStorage.setItem(API_CONSOLE_CACHE_KEY, JSON.stringify(cache));
+      } catch (err) {
+        // Ignore cache write failures.
+      }
+    }
+
+    function apiConsoleKey(method, path, body) {
+      return `${method}::${path}::${body || ""}`;
+    }
+
+    function renderApiResponse(payload, cached) {
+      const status = payload.status ?? "unknown";
+      const ok = Boolean(payload.ok);
+      const origin = cached ? "cached" : "live";
+      apiResponse.classList.remove("ok", "error");
+      apiResponse.classList.add(ok ? "ok" : "error");
+      apiResponse.textContent = `[${status}] ${ok ? "OK" : "ERROR"} (${origin})\n${payload.body || ""}`.trim();
+    }
+
+    async function sendApiConsole(force = false) {
+      const method = apiMethodSelect.value;
+      let path = apiPathInput.value.trim();
+      const body = apiBodyInput.value.trim();
+      if (!path) {
+        apiResponse.textContent = "Response: enter a path to send.";
+        apiResponse.classList.remove("ok", "error");
+        return;
+      }
+      if (!path.startsWith("/")) {
+        path = `/${path}`;
+      }
+
+      const key = apiConsoleKey(method, path, body);
+      if (apiIdempotentToggle.checked && !force) {
+        const cache = getApiConsoleCache();
+        if (cache[key]) {
+          renderApiResponse(cache[key], true);
+          return;
+        }
+      }
+
+      apiResponse.classList.remove("ok", "error");
+      apiResponse.textContent = "Sending request...";
+      try {
+        const options = { method };
+        if (body && method !== "GET") {
+          options.headers = { "Content-Type": "application/json" };
+          options.body = body;
+        }
+        const response = await apiFetch(path, options);
+        const contentType = response.headers.get("content-type") || "";
+        let payloadText = "";
+        if (contentType.includes("application/json")) {
+          const data = await safeJson(response);
+          payloadText = data ? JSON.stringify(data, null, 2) : "";
+        } else if (contentType.startsWith("text/") || contentType === "") {
+          payloadText = await response.text();
+        } else {
+          payloadText = `Binary response (${contentType || "unknown"})`;
+        }
+        const payload = { status: response.status, ok: response.ok, body: payloadText };
+        renderApiResponse(payload, false);
+        if (apiIdempotentToggle.checked && response.ok && !force) {
+          const cache = getApiConsoleCache();
+          cache[key] = payload;
+          setApiConsoleCache(cache);
+        }
+      } catch (err) {
+        apiResponse.classList.remove("ok");
+        apiResponse.classList.add("error");
+        apiResponse.textContent = `API console error: ${err.message}`;
+      }
+    }
+
     async function takeScreenshot() {
       screenshotStatus.textContent = "Capturing screenshot...";
       try {
@@ -1002,6 +1218,37 @@
       });
     }
 
+    const API_TEMPLATES = {
+      health: { method: "GET", path: "/health", body: "" },
+      sessions: { method: "GET", path: "/sessions", body: "" },
+      suspend: { method: "POST", path: "/sessions/suspend", body: JSON.stringify({ shutdown_wine: true, stop_recording: true }, null, 2) },
+      resume: { method: "POST", path: "/sessions/resume", body: JSON.stringify({ restart_wine: true, stop_recording: true }, null, 2) },
+      "record-start": { method: "POST", path: "/recording/start", body: JSON.stringify({ new_session: false }, null, 2) },
+      "record-stop": { method: "POST", path: "/recording/stop", body: "" },
+      lifecycle: { method: "GET", path: "/lifecycle/status", body: "" },
+      shutdown: { method: "POST", path: "/lifecycle/shutdown", body: "" },
+      windows: { method: "GET", path: "/windows", body: "" },
+      apps: { method: "GET", path: "/apps", body: "" },
+      inspect: { method: "POST", path: "/inspect/window", body: JSON.stringify({ list_only: true }, null, 2) }
+    };
+
+    function initApiConsole() {
+      apiPathInput.value = "/health";
+      apiSendBtn.addEventListener("click", () => sendApiConsole(false));
+      apiSendForceBtn.addEventListener("click", () => sendApiConsole(true));
+      apiTemplateButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const template = API_TEMPLATES[button.dataset.apiTemplate];
+          if (!template) {
+            return;
+          }
+          apiMethodSelect.value = template.method;
+          apiPathInput.value = template.path;
+          apiBodyInput.value = template.body || "";
+        });
+      });
+    }
+
     async function initVnc() {
       badgeVnc.textContent = "connecting...";
       try {
@@ -1050,6 +1297,7 @@
     initTokenControls();
     initVncControls();
     initActions();
+    initApiConsole();
     initVnc();
 
     runPoll();

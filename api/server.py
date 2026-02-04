@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 import subprocess
 import os
 import glob
@@ -18,8 +19,6 @@ import re
 import fcntl
 import signal
 import threading
-
-app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot")
 START_TIME = time.time()
 UI_DIR = os.path.join(os.path.dirname(__file__), "ui")
 UI_INDEX = os.path.join(UI_DIR, "index.html")
@@ -27,6 +26,18 @@ NOVNC_CORE_DIR = "/usr/share/novnc/core"
 NOVNC_VENDOR_DIR = "/usr/share/novnc/vendor"
 SESSION_FILE = "/tmp/winebot_current_session"
 DEFAULT_SESSION_ROOT = "/artifacts/sessions"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    session_dir = read_session_dir()
+    append_lifecycle_event(session_dir, "api_started", "API server started", source="api")
+    try:
+        yield
+    finally:
+        session_dir = read_session_dir()
+        append_lifecycle_event(session_dir, "api_stopped", "API server stopping", source="api")
+
+app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot", lifespan=lifespan)
 
 if os.path.isdir(NOVNC_CORE_DIR):
     app.mount("/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core")
@@ -47,11 +58,6 @@ async def verify_token(request: Request, api_key: str = Security(api_key_header)
 
 # Apply security globally
 app.router.dependencies.append(Depends(verify_token))
-
-@app.on_event("startup")
-def log_api_startup() -> None:
-    session_dir = read_session_dir()
-    append_lifecycle_event(session_dir, "api_started", "API server started", source="api")
 
 # Path Safety
 ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts"]

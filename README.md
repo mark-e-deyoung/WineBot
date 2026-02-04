@@ -114,6 +114,20 @@ Dashboard (noVNC + API controls):
 
 `http://localhost:8000/ui` (enter `API_TOKEN` in the panel if configured)
 
+## Unified CLI (API-first)
+
+Use `scripts/winebotctl` to access the full API from the host or container. It supports idempotent mode and a generic API passthrough.
+
+Examples:
+
+`scripts/winebotctl health`
+
+`scripts/winebotctl sessions list`
+
+`scripts/winebotctl recording start --session-root /artifacts/sessions`
+
+`scripts/winebotctl api POST /sessions/suspend --json '{"shutdown_wine":true}'`
+
 ## Take a screenshot (headless)
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./automation/screenshot.sh`
