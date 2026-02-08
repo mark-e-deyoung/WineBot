@@ -4,7 +4,9 @@
 # Tracing
 if [ "${WINEBOT_INPUT_TRACE_WINDOWS:-0}" = "1" ]; then
     WIN_TRACE_MS="${WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS:-10}"
-    ahk /automation/input_trace_windows.ahk "Z:${SESSION_DIR//\//\}\logs\input_events_windows.jsonl" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
+    # Escape path for Wine (convert / to \)
+    WINE_LOG_PATH="Z:${SESSION_DIR//\//\\}\\logs\\input_events_windows.jsonl"
+    ahk /automation/input_trace_windows.ahk "$WINE_LOG_PATH" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
 fi
 
 if [ "${WINEBOT_INPUT_TRACE:-0}" = "1" ]; then
@@ -24,11 +26,11 @@ if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
     fi
     echo "$((SEGMENT_INDEX + 1))" > "$SEGMENT_INDEX_FILE"
 
-    python3 -m automation.recorder start 
-        --session-dir "$SESSION_DIR" 
-        --display "$DISPLAY" 
-        --resolution "$RES" 
-        --fps 30 
+    python3 -m automation.recorder start \
+        --session-dir "$SESSION_DIR" \
+        --display "$DISPLAY" \
+        --resolution "$RES" \
+        --fps 30 \
         --segment "$SEGMENT_INDEX" > "$SESSION_DIR/logs/recorder.log" 2>&1 &
 fi
 
@@ -57,7 +59,6 @@ echo "--> Starting Desktop Supervisor..."
     
     # Check for wineserver crash
     if ! pgrep -n "wineserver" > /dev/null; then
-         # Only log periodically if needed
          rm -f /tmp/wineserver_missing_logged
     fi
 

@@ -33,16 +33,11 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
 fi
 
 # Wine Prefix
-wineserver -k || true
+# (wineserver -k removed to avoid ownership noise)
 sleep 1
 echo "--> Ensuring wineserver is running..."
 wineserver -p >/dev/null 2>&1 &
 sleep 2
-
-# Verify Driver
-if ! wine cmd /c "echo Driver Check" >/dev/null 2>&1; then
-    echo "WARNING: Wine basic check failed."
-fi
 
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX..."
@@ -63,7 +58,7 @@ fi
 # Cleanup
 pkill -f "explorer.exe" || true
 pkill -f "start.exe" || true
-wineserver -k || true
+# wineserver -k removed
 sleep 1
 wineserver -p >/dev/null 2>&1 &
-wineserver -w
+# wineserver -w removed (blocking)

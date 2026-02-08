@@ -9,7 +9,7 @@ import json
 from api.core.models import RecordingStartModel, RecorderState
 from api.core.recorder import recorder_lock, recorder_running, recorder_state, write_recorder_state
 from api.utils.files import read_session_dir, session_id_from_dir, resolve_session_dir, ensure_session_subdirs, write_session_dir, write_session_manifest, next_segment_index, read_pid, recorder_pid, append_lifecycle_event
-from api.utils.process import manage_process, run_async_command
+from api.utils.process import manage_process, run_async_command, pid_running
 
 router = APIRouter(prefix="/recording", tags=["recording"])
 

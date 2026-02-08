@@ -2,8 +2,8 @@ from fastapi import APIRouter
 import os
 import time
 import platform
-from api.utils.process import check_binary, safe_command, safe_async_command, find_processes
-from api.utils.files import statvfs_info, read_session_dir, session_id_from_dir, input_trace_pid, pid_running
+from api.utils.process import check_binary, safe_command, safe_async_command, find_processes, pid_running
+from api.utils.files import statvfs_info, read_session_dir, session_id_from_dir, input_trace_pid
 from api.core.recorder import recording_status, RecorderState
 from api.core.broker import broker
 

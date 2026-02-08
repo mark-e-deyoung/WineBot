@@ -5,35 +5,7 @@ from typing import Optional
 from pydantic import BaseModel
 from fastapi import HTTPException
 
-class ControlMode(str, Enum):
-    USER = "USER"
-    AGENT = "AGENT"
-
-class UserIntent(str, Enum):
-    WAIT = "WAIT"
-    SAFE_INTERRUPT = "SAFE_INTERRUPT"
-    STOP_NOW = "STOP_NOW"
-
-class AgentStatus(str, Enum):
-    IDLE = "IDLE"
-    RUNNING = "RUNNING"
-    PAUSED = "PAUSED"
-    STOPPING = "STOPPING"
-    STOPPED = "STOPPED"
-
-class ControlState(BaseModel):
-    session_id: str
-    interactive: bool
-    control_mode: ControlMode
-    lease_expiry: Optional[float] = None
-    user_intent: UserIntent
-    agent_status: AgentStatus
-
-class GrantControlModel(BaseModel):
-    lease_seconds: int
-
-class UserIntentModel(BaseModel):
-    intent: UserIntent
+from api.core.models import ControlMode, UserIntent, AgentStatus, ControlState, GrantControlModel, UserIntentModel
 
 class InputBroker:
     def __init__(self):

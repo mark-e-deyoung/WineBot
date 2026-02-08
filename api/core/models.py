@@ -8,6 +8,36 @@ class RecorderState(str, Enum):
     PAUSED = "paused"
     STOPPING = "stopping"
 
+class ControlMode(str, Enum):
+    USER = "USER"
+    AGENT = "AGENT"
+
+class UserIntent(str, Enum):
+    WAIT = "WAIT"
+    SAFE_INTERRUPT = "SAFE_INTERRUPT"
+    STOP_NOW = "STOP_NOW"
+
+class AgentStatus(str, Enum):
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
+
+class ControlState(BaseModel):
+    session_id: str
+    interactive: bool
+    control_mode: ControlMode
+    lease_expiry: Optional[float] = None
+    user_intent: UserIntent
+    agent_status: AgentStatus
+
+class GrantControlModel(BaseModel):
+    lease_seconds: int
+
+class UserIntentModel(BaseModel):
+    intent: UserIntent
+
 class ClickModel(BaseModel):
     x: int
     y: int

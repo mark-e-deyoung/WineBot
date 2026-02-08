@@ -1,12 +1,19 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request, HTTPException, Security
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader
 from contextlib import asynccontextmanager
 import os
 import asyncio
-from api.routers import health, lifecycle, input, recording, control
+from api.routers import health, lifecycle, input, recording, control, automation
 from api.utils.files import read_session_dir, append_lifecycle_event
 from api.utils.process import process_store
+from api.core.broker import broker
+from api.core.models import ControlMode, UserIntent, AgentStatus
+from api.utils.process import safe_command, safe_async_command, check_binary, pid_running, manage_process, run_async_command, run_command
+from api.utils.files import statvfs_info, read_session_dir, append_lifecycle_event, recorder_running, ensure_session_dir, recorder_state, to_wine_path, append_input_event, SESSION_FILE, write_session_dir, write_session_manifest, ensure_session_subdirs, ensure_user_profile, link_wine_user_dir, write_session_state
+from api.routers.health import meminfo_summary
+from api.routers.lifecycle import schedule_shutdown, graceful_wine_shutdown, graceful_component_shutdown
+import time # For tests patching api.server.time
 
 NOVNC_CORE_DIR = "/usr/share/novnc/core"
 NOVNC_VENDOR_DIR = "/usr/share/novnc/vendor"
@@ -81,6 +88,7 @@ app.include_router(lifecycle.router)
 app.include_router(input.router)
 app.include_router(recording.router)
 app.include_router(control.router)
+app.include_router(automation.router)
 
 @app.get("/version")
 def get_version():

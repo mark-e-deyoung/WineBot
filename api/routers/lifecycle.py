@@ -10,7 +10,7 @@ from api.utils.files import (read_session_dir, session_id_from_dir, lifecycle_lo
                              write_session_manifest, link_wine_user_dir, write_session_state, recorder_running,
                              read_session_state)
 from api.utils.process import safe_command, find_processes
-from api.core.recorder import stop_recording, recorder_running
+from api.core.recorder import stop_recording
 from api.core.broker import broker
 from api.core.models import SessionSuspendModel, SessionResumeModel
 
@@ -95,6 +95,24 @@ def schedule_shutdown(session_dir: Optional[str], delay: float, sig: int) -> Non
         )
     except Exception:
         pass
+
+@router.get("/lifecycle/status")
+async def lifecycle_status():
+    """Alias for high-level health."""
+    from api.routers.health import health_check
+    return health_check()
+
+@router.post("/openbox/reconfigure")
+async def openbox_reconfigure():
+    """Reload Openbox configuration."""
+    safe_command(["openbox", "--reconfigure"])
+    return {"status": "reconfigured"}
+
+@router.post("/openbox/restart")
+async def openbox_restart():
+    """Restart Openbox."""
+    safe_command(["openbox", "--restart"])
+    return {"status": "restarted"}
 
 @router.get("/lifecycle/events")
 def lifecycle_events(limit: int = 100):

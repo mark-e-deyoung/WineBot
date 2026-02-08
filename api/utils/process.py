@@ -12,6 +12,15 @@ def manage_process(proc: subprocess.Popen):
     """Track a detached process to ensure it is reaped later."""
     process_store.add(proc)
 
+def pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
 async def run_async_command(cmd: List[str]) -> Dict[str, Any]:
     """Run a command asynchronously without blocking the event loop."""
     try:

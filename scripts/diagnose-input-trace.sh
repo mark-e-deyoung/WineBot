@@ -886,10 +886,11 @@ start_x11_core_trace() {
   local pointer_id keyboard_id pointer_xtest_id keyboard_xtest_id
   local xlist
   xlist="$(xinput --list --short 2>/dev/null || true)"
-  pointer_id="$(printf '%s\n' "$xlist" | awk '/Virtual core pointer/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
-  pointer_xtest_id="$(printf '%s\n' "$xlist" | awk '/Virtual core XTEST pointer/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
-  keyboard_id="$(printf '%s\n' "$xlist" | awk '/Virtual core keyboard/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
-  keyboard_xtest_id="$(printf '%s\n' "$xlist" | awk '/Virtual core XTEST keyboard/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
+  pointer_id="$(printf '%s\n' "$xlist" | awk '/Virtual core XTEST pointer/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
+  keyboard_id="$(printf '%s\n' "$xlist" | awk '/Virtual core XTEST keyboard/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
+  # (Backup to master if XTEST not found)
+  [ -z "$pointer_id" ] && pointer_id="$(printf '%s\n' "$xlist" | awk '/Virtual core pointer/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
+  [ -z "$keyboard_id" ] && keyboard_id="$(printf '%s\n' "$xlist" | awk '/Virtual core keyboard/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"
 
   start_core_trace_device() {
     local label="$1"
@@ -914,9 +915,7 @@ start_x11_core_trace() {
   }
 
   start_core_trace_device "pointer_master" "$pointer_id"
-  start_core_trace_device "pointer_xtest" "$pointer_xtest_id"
   start_core_trace_device "keyboard_master" "$keyboard_id"
-  start_core_trace_device "keyboard_xtest" "$keyboard_xtest_id"
 }
 
 stop_x11_core_trace() {
