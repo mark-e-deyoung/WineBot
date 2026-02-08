@@ -2436,6 +2436,7 @@ def input_events(
     limit: int = 200,
     since_epoch_ms: Optional[int] = None,
     source: Optional[str] = None,
+    origin: Optional[str] = None,
     session_id: Optional[str] = None,
     session_dir: Optional[str] = None,
     session_root: Optional[str] = None,
@@ -2477,6 +2478,9 @@ def input_events(
                     if int(event.get("timestamp_epoch_ms", 0)) < since_epoch_ms:
                         continue
                 except Exception:
+                    continue
+            if origin is not None:
+                if event.get("origin") != origin:
                     continue
             events.append(event)
     except Exception:

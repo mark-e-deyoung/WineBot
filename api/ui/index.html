@@ -69,6 +69,16 @@
       pointer-events: auto;
     }
 
+    #vnc-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+    }
+
     .vnc-overlay {
       position: absolute;
       top: 16px;
@@ -567,6 +577,7 @@
   <div id="dashboard">
     <div id="app">
       <section id="vnc-container">
+        <canvas id="vnc-crosshair"></canvas>
         <div class="vnc-overlay">
           <div class="vnc-title">Live Session</div>
           <div id="badge-vnc" class="badge">connecting...</div>
@@ -821,6 +832,62 @@
     const vncInjectBtn = document.getElementById("btn-inject-click");
     const inputDebugStats = document.getElementById("input-debug-stats");
     const inputDebugLog = document.getElementById("input-debug-log");
+    const vncCrosshair = document.getElementById("vnc-crosshair");
+    let crosshairCtx = null;
+
+    if (vncCrosshair) {
+        crosshairCtx = vncCrosshair.getContext("2d");
+    }
+
+    function updateCrosshair(x, y, visible) {
+        if (!vncCrosshair || !crosshairCtx) return;
+        if (!visible) {
+            vncCrosshair.style.display = "none";
+            return;
+        }
+        
+        // Sync size with VNC canvas if possible
+        const vncCanvas = vncContainer.querySelector("canvas:not(#vnc-crosshair)");
+        if (vncCanvas) {
+            if (vncCrosshair.width !== vncCanvas.width || vncCrosshair.height !== vncCanvas.height) {
+                vncCrosshair.width = vncCanvas.width;
+                vncCrosshair.height = vncCanvas.height;
+                // Match VNC canvas style size
+                vncCrosshair.style.width = vncCanvas.style.width;
+                vncCrosshair.style.height = vncCanvas.style.height;
+            }
+        } else {
+             // Fallback
+             vncCrosshair.width = 1920; 
+             vncCrosshair.height = 1080;
+        }
+
+        vncCrosshair.style.display = "block";
+        const ctx = crosshairCtx;
+        const w = vncCrosshair.width;
+        const h = vncCrosshair.height;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+        ctx.lineWidth = 2;
+        
+        // Vertical line
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        
+        // Horizontal line
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        
+        ctx.stroke();
+        
+        // Circle at intersection
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255, 255, 0, 0.9)";
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
 
     let lastVncClick = null;
 
@@ -1321,6 +1388,38 @@
           results.map((result) => (result.status === "fulfilled" ? result.value : null));
 
         const healthData = healthRes ? await safeJson(healthRes) : null;
+        const lifecycleData = lifecycleRes ? await safeJson(lifecycleRes) : null;
+        
+        // Fetch control state if session is active
+        let controlState = null;
+        if (lifecycleData && lifecycleData.session_id) {
+             try {
+                 const ctrlRes = await apiFetch(`/sessions/${lifecycleData.session_id}/control`);
+                 if (ctrlRes.ok) {
+                     controlState = await safeJson(ctrlRes);
+                 }
+             } catch (e) {}
+        }
+        
+        // Update Crosshair if in Agent mode
+        if (controlState && controlState.control_mode === "AGENT") {
+             try {
+                 // Get last agent input event
+                 const inputRes = await apiFetch("/input/events?limit=1&origin=agent");
+                 if (inputRes.ok) {
+                     const inputData = await safeJson(inputRes);
+                     if (inputData.events && inputData.events.length > 0) {
+                         const ev = inputData.events[0];
+                         if (ev.x !== undefined && ev.y !== undefined) {
+                             updateCrosshair(ev.x, ev.y, true);
+                         }
+                     }
+                 }
+             } catch (e) {}
+        } else {
+             updateCrosshair(0, 0, false);
+        }
+
         const x11Data = x11Res ? await safeJson(x11Res) : null;
         const windowsData = windowsRes ? await safeJson(windowsRes) : null;
         const recordingData = recordingRes ? await safeJson(recordingRes) : null;
