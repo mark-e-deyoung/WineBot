@@ -38,6 +38,7 @@ fi
 if [ "${ENABLE_API:-0}" = "1" ]; then
     export DISPLAY="${DISPLAY}"
     export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+    export PYTHONPATH="${PYTHONPATH:-}:/"
     uvicorn api.server:app --host 0.0.0.0 --port 8000 > "$SESSION_DIR/logs/api.log" 2>&1 &
 fi
 
