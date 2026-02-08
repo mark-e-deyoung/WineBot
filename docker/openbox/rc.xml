@@ -60,6 +60,12 @@
         <action name="Focus"/>
         <action name="Raise"/>
       </mousebind>
+      <!-- Allow Alt+RightClick to show Openbox menu on any window -->
+      <mousebind button="A-Right" action="Press">
+        <action name="ShowMenu">
+          <menu>root-menu</menu>
+        </action>
+      </mousebind>
     </context>
     <context name="Root">
       <mousebind button="Right" action="Press">
@@ -71,6 +77,12 @@
   </mouse>
 
   <keyboard>
+    <!-- Add Ctrl+Alt+M to show menu -->
+    <keybind key="C-A-m">
+      <action name="ShowMenu">
+        <menu>root-menu</menu>
+      </action>
+    </keybind>
     <keybind key="A-Tab">
       <action name="NextWindow">
         <raise>yes</raise>

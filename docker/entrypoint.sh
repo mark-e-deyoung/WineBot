@@ -33,6 +33,13 @@ fi
 
 # --- USER CONTEXT (winebot) ---
 
+# Prevent multiple entrypoint runs (e.g. if manually executed in a shell)
+if [ -f /tmp/entrypoint.pid ] && ps -p $(cat /tmp/entrypoint.pid) > /dev/null 2>&1; then
+    echo "--> Entrypoint already running (PID $(cat /tmp/entrypoint.pid)). Executing command directly..."
+    exec "$@"
+fi
+echo $$ > /tmp/entrypoint.pid
+
 # 1. Clean up stale locks from previous runs (if any)
 rm -f "/tmp/.X${DISPLAY##*:}-lock" "/tmp/.X11-unix/X${DISPLAY##*:}"
 
