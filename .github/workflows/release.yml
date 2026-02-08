@@ -33,7 +33,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Run smoke tests (headless)
-        run: scripts/smoke-test.sh --full --include-debug --include-debug-proxy --cleanup --no-build
+        run: |
+          export WINEBOT_DEBUG_X11=1
+          export WINEBOT_VNC_PROXY_DEBUG=1
+          scripts/smoke-test.sh --full --include-debug --cleanup --no-build
+        timeout-minutes: 40
       - name: Scan image (Trivy)
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         with:

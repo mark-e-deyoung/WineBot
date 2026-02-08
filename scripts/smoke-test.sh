@@ -304,6 +304,9 @@ compose_exec headless winebot "$(cat <<'EOF'
     done
 
     echo "Checking Health Endpoint (with Token)..."
+    # Safety: Grant control to agent before running further tests
+    curl -s -X POST "${BASE_URL}/sessions/unknown/control/grant" -H "X-API-Key: smoke-secret" -H "Content-Type: application/json" -d '{"lease_seconds": 600}' > /dev/null || true
+
     if [ "$health_ok" = "1" ]; then
         curl -s --fail -H "X-API-Key: smoke-secret" "${BASE_URL}/health" >/dev/null
         echo " API Health OK"
