@@ -106,6 +106,10 @@ fi
 if [[ "$PHASE" == "all" || "$PHASE" == "trace" ]]; then
     log "=== PHASE 5: Trace Verification ==="
     log "Running Coordinate Alignment Check..."
+    log "Trace Status:"
+    curl -s http://localhost:8000/input/trace/status | python3 -m json.tool || true
+    curl -s http://localhost:8000/input/trace/windows/status | python3 -m json.tool || true
+    
     # Click 4 corners + center
     TEST_POINTS=("100,100" "1180,100" "100,620" "1180,620" "640,360")
     for pt in "${TEST_POINTS[@]}"; do
