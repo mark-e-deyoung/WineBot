@@ -126,13 +126,12 @@ if [[ "$PHASE" == "all" || "$PHASE" == "trace" ]]; then
     check_trace() {
         local layer="$1"
         local count=$(curl -s "http://localhost:8000/input/events?source=${layer}&since_epoch_ms=${T0}&limit=50" | python3 -c "import sys, json; print(len(json.load(sys.stdin).get('events', [])))" 2>/dev/null || echo 0)
-        if [ "$count" -gt 0 ]; then
-            log "Trace layer '$layer': OK ($count events)"
-        else
-            log "Trace layer '$layer': NO EVENTS FOUND (last 60s)"
-            return 1
-        fi
-    }
+            if [ "$count" -gt 0 ]; then
+                log "Trace layer '$layer': OK ($count events)"
+            else
+                log "Trace layer '$layer': NO EVENTS FOUND (last 120s)"
+                return 1
+            fi    }
 
     ERR=0
     check_trace "x11" || ERR=1
@@ -140,7 +139,20 @@ if [[ "$PHASE" == "all" || "$PHASE" == "trace" ]]; then
     if [ "${WINEBOT_INPUT_TRACE_NETWORK:-0}" = "1" ]; then
         check_trace "network" || ERR=1
     fi
-    [ $ERR -eq 0 ] || exit 1
+    
+    if [ $ERR -ne 0 ]; then
+        log "Trace verification failed. Printing debug info:"
+        SESSION_DIR=$(cat /tmp/winebot_current_session 2>/dev/null || echo "")
+        if [ -n "$SESSION_DIR" ]; then
+            for f in api.log input_trace.log input_trace_x11_core.stderr input_events.jsonl; do
+                if [ -f "$SESSION_DIR/logs/$f" ]; then
+                    log "--- $f TAIL ---"
+                    tail -n 100 "$SESSION_DIR/logs/$f"
+                fi
+            done
+        fi
+        exit 1
+    fi
 fi
 
 # 6. Recording Artifact Verification
