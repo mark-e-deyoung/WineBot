@@ -9,6 +9,11 @@ export SCREEN="${SCREEN:-1280x720x24}"
 # 1. Root Level Setup (User creation, permissions)
 source /scripts/init/00-setup-user.sh
 
+# Drop privileges and re-execute this script as 'winebot'
+if [ "$(id -u)" = "0" ]; then
+    exec gosu winebot "$0" "$@"
+fi
+
 # --- USER CONTEXT (winebot) ---
 
 # Prevent multiple entrypoint runs
@@ -36,12 +41,15 @@ if [ -f "$WINEBOT_INSTANCE_CONFIG" ]; then
 fi
 
 # 2. Infrastructure Setup (Session, X11, WM)
+echo "--> Pass 2: Infrastructure..."
 source /scripts/init/10-setup-infra.sh
 
 # 3. Wine Environment Setup (Prefix, Theme, VNC)
+echo "--> Pass 3: Wine Environment..."
 source /scripts/init/20-setup-wine.sh
 
 # 4. Service Startup (API, Recorder, Supervisor)
+echo "--> Pass 4: Services..."
 source /scripts/init/30-start-services.sh
 
 # Keep container alive

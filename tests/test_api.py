@@ -86,15 +86,25 @@ def test_recording_stop(mock_running, mock_run, tmp_path, auth_headers):
                 assert response.status_code == 200
 
 @patch("api.server.safe_command")
-def test_run_app(mock_run, auth_headers):
-    mock_run.return_value = {"ok": True, "stdout": "Success"}
+@patch("api.routers.automation.validate_path")
+def test_run_app(mock_validate, mock_run, auth_headers):
+    mock_run.return_value = {"ok": True, "stdout": "Success", "stderr": ""}
+    mock_validate.return_value = "/apps/test.exe"
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
-        # Use whitelisted path
         response = client.post("/apps/run", json={"path": "/apps/test.exe"}, headers=auth_headers)
+        # Router returns 200 with status: finished
         assert response.status_code == 200
         assert response.json()["status"] == "finished"
 
-def test_run_app_invalid_path(auth_headers):
+@patch("api.routers.automation.validate_path")
+def test_run_app_invalid_path(mock_validate, auth_headers):
+
+    mock_validate.side_effect = Exception("Path not allowed")
+
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
+
         response = client.post("/apps/run", json={"path": "/etc/passwd"}, headers=auth_headers)
+
         assert response.status_code == 400 
+
+ 
