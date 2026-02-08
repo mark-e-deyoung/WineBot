@@ -21,7 +21,10 @@ if [ "$(id -u)" = "0" ]; then
     # Ensure critical directories are owned by the user
     mkdir -p "$WINEPREFIX" "/home/winebot/.cache" "/artifacts"
     chown -R winebot:winebot "/home/winebot" "$WINEPREFIX" "/artifacts"
-    chmod 777 /tmp
+    
+    # Harden /tmp and /wineprefix
+    chmod 1777 /tmp
+    chmod 700 "$WINEPREFIX"
 
     # Handle .X11-unix specifically for Xvfb
     mkdir -p /tmp/.X11-unix
@@ -43,6 +46,24 @@ if [ -f /tmp/entrypoint.user.pid ] && ps -p $(cat /tmp/entrypoint.user.pid) > /d
     fi
 fi
 echo $$ > /tmp/entrypoint.user.pid
+
+# Load runtime configuration overrides from persistent volume
+WINEBOT_CONFIG_FILE="/wineprefix/winebot.env"
+WINEBOT_INSTANCE_CONFIG="/wineprefix/winebot.${HOSTNAME}.env"
+
+# Load global config
+if [ -f "$WINEBOT_CONFIG_FILE" ]; then
+    echo "--> Loading global configuration from $WINEBOT_CONFIG_FILE"
+    chmod 600 "$WINEBOT_CONFIG_FILE"
+    set -a; source "$WINEBOT_CONFIG_FILE"; set +a
+fi
+
+# Load instance-specific config (overrides global)
+if [ -f "$WINEBOT_INSTANCE_CONFIG" ]; then
+    echo "--> Loading instance configuration from $WINEBOT_INSTANCE_CONFIG"
+    chmod 600 "$WINEBOT_INSTANCE_CONFIG"
+    set -a; source "$WINEBOT_INSTANCE_CONFIG"; set +a
+fi
 
 # 1. Clean up stale locks from previous runs (if any)
 rm -f "/tmp/.X${DISPLAY##*:}-lock" "/tmp/.X11-unix/X${DISPLAY##*:}"
