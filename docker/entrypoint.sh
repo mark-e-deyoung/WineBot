@@ -477,11 +477,19 @@ wine reg delete "HKEY_CURRENT_USER\\Software\\Wine\\Explorer\\Desktops" /f >/dev
 
 # Disable XInput2 to ensure VNC clicks are received by Wine
 wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f >/dev/null 2>&1
+# Enable Managed mode to let Openbox handle Wine windows more reliably
+wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\X11 Driver" /v Managed /t REG_SZ /d "Y" /f >/dev/null 2>&1
 
 # Apply WineBot Theme (Fonts, Colors, Metrics)
 if [ -x "/scripts/install-theme.sh" ]; then
     /scripts/install-theme.sh
 fi
+
+# Cleanup any early-start explorers or stale wineserver instances
+pkill -f "explorer.exe" || true
+pkill -f "start.exe" || true
+wineserver -k || true
+sleep 1
 
 # Supervisor: Ensure explorer runs and stays maximized
 echo "--> Starting Desktop Supervisor..."
