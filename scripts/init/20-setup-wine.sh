@@ -41,6 +41,7 @@ sleep 2
 
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX..."
+    export WINEDLLOVERRIDES="mscoree,mshtml="
     wineboot -u >/dev/null 2>&1 || true
     wineserver -w
 fi
