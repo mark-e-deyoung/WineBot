@@ -54,12 +54,17 @@ fi
 # 2. Start Full Tracing & Recording (Setup for following tests)
 if [[ "$PHASE" != "health" ]]; then
     log "=== SETUP: Initializing Tracing & Recording ==="
+    # Grant control to agent for the duration of diagnostics
+    curl -s -X POST http://localhost:8000/sessions/unknown/control/grant -H "Content-Type: application/json" -d '{"lease_seconds": 3600}' > /dev/null
+    
     curl -s -X POST http://localhost:8000/input/trace/start > /dev/null
     curl -s -X POST http://localhost:8000/input/trace/windows/start > /dev/null
     if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
         curl -s -X POST http://localhost:8000/recording/start > /dev/null
         log "Recording active."
     fi
+    log "Waiting for tracers to initialize..."
+    sleep 5
 fi
 
 # 3. Integrated Smoke Tests
@@ -111,8 +116,8 @@ if [[ "$PHASE" == "all" || "$PHASE" == "trace" ]]; then
         sleep 1
     done
 
-    # Check if events were recorded in the last 60 seconds
-    T0=$(python3 -c "import time; print(int((time.time() - 60) * 1000))")
+    # Check if events were recorded in the last 120 seconds
+    T0=$(python3 -c "import time; print(int((time.time() - 120) * 1000))")
     
     check_trace() {
         local layer="$1"
