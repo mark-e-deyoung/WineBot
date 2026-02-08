@@ -12,8 +12,8 @@ from typing import Any, Dict, Optional
 
 TRACE_PID_FILE = "input_trace.pid"
 TRACE_STATE_FILE = "input_trace.state"
-TRACE_LOG_FILE = "logs/input_events.jsonl"
-TRACE_STDERR_LOG = "logs/input_trace.log"
+TRACE_LOG_FILE = "input_events.jsonl"
+TRACE_STDERR_LOG = "input_trace.log"
 DEFAULT_LAYER = "x11"
 DEFAULT_TOOL = "xinput"
 

@@ -213,7 +213,7 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
         return 1
 
     pointer_info, keyboard_info = find_master_devices()
-    if not pointer_info[0] and not keyboard_info[0]:
+    if not pointer_info.get("id") and not keyboard_info.get("id"):
         with open(stderr_path, "a") as err:
             err.write("Failed to locate master pointer/keyboard via xinput list.\n")
         return 1
