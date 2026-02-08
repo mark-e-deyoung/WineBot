@@ -38,6 +38,10 @@ Artifacts produced:
 - `segment_index.txt`: Next segment number to use.
  - `screenshots/`: Screenshots captured via API or scripts.
  - `logs/`: API, entrypoint, and automation logs.
+- `logs/input_events.jsonl`: X11 + agent input trace events (if enabled).
+- `logs/input_events_client.jsonl`: noVNC client input trace (if enabled).
+- `logs/input_events_windows.jsonl`: Windows-side input trace (if enabled).
+- `logs/input_events_network.jsonl`: VNC network input trace (if enabled).
  - `scripts/`: API-generated script files (AHK/AutoIt/Python).
 - `user/`: Wine user profile directory (default), used for app inputs/outputs. Can be overridden with `WINEBOT_USER_DIR`.
 
@@ -65,6 +69,10 @@ Format for `--pos` is `x,y` or `x,y,w,h`.
 The canonical output is an MKV file. You can toggle the annotations ON/OFF in most video players (VLC, mpv, etc.) by selecting the subtitle track.
 - The `Default` track contains basic lifecycle events and text subtitles.
 - The `Overlay` track (in ASS format) contains positioned text.
+
+## Input Trace Overlays
+
+If `WINEBOT_INPUT_TRACE_RECORD=1` is set, input trace events (clicks/keys) are injected into the subtitle/overlay tracks with `origin` and `tool` metadata.
 
 ## How it Works
 

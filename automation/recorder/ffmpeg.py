@@ -14,7 +14,7 @@ class FFMpegRecorder:
         self.output_file = output_file
         self.process = None
 
-    def start(self):
+    def start(self, metadata: dict = None):
         cmd = [
             "ffmpeg",
             "-y",
@@ -26,9 +26,15 @@ class FFMpegRecorder:
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            self.output_file
+            "-pix_fmt", "yuv420p"
         ]
+
+        if metadata:
+            for key, value in metadata.items():
+                if value:
+                    cmd.extend(["-metadata", f"{key}={value}"])
+
+        cmd.append(self.output_file)
         
         logger.info(f"Starting ffmpeg: {' '.join(cmd)}")
         

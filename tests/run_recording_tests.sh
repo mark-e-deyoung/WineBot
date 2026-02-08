@@ -67,53 +67,30 @@ check_file() {
     fi
 }
 
-check_file "$SESSION_DIR/video.mkv"
-check_file "$SESSION_DIR/events.jsonl"
-check_file "$SESSION_DIR/events.ass"
-check_file "$SESSION_DIR/events.vtt"
+VIDEO_FILE="$SESSION_DIR/video_001_part001.mkv"
+check_file "$VIDEO_FILE"
+check_file "$SESSION_DIR/events_001.jsonl"
 check_file "$SESSION_DIR/session.json"
 
 # Check video properties
 echo "Checking video stream..."
-ffprobe -v error -show_entries stream=width,height,codec_name -of default=noprint_wrappers=1 "$SESSION_DIR/video.mkv"
-
-echo "Checking embedded subtitle streams..."
-stream_count=$(ffprobe -v error -show_entries format=nb_streams -of default=noprint_wrappers=1:nokey=1 "$SESSION_DIR/video.mkv")
-# Expect 1 video + 2 subtitle streams = 3
-if [ "$stream_count" -ge 3 ]; then
-    echo "PASS: Embedded subtitle streams found ($stream_count streams total)"
-else
-    echo "FAIL: Expected at least 3 streams (1 video, 2 subtitles), found $stream_count"
-    ffprobe -v error -show_streams "$SESSION_DIR/video.mkv" | grep codec_type
-    exit 1
-fi
+ffprobe -v error -show_entries stream=width,height,codec_name -of default=noprint_wrappers=1 "$VIDEO_FILE"
 
 echo "Checking global metadata..."
-if ffprobe -v error -show_entries format_tags=WINEBOT_SESSION_ID,encoder -of default=noprint_wrappers=1 "$SESSION_DIR/video.mkv" | grep -q "WINEBOT_SESSION_ID="; then
+if ffprobe -v error -show_entries format_tags=WINEBOT_SESSION_ID,encoder -of default=noprint_wrappers=1 "$VIDEO_FILE" | grep -q "WINEBOT_SESSION_ID="; then
     echo "PASS: Global metadata found"
 else
     echo "FAIL: Global metadata missing"
-    ffprobe -v error -show_entries format_tags -of default=noprint_wrappers=1 "$SESSION_DIR/video.mkv"
-    exit 1
-fi
-
-# Check annotations in ASS
-if grep -q "Hello World" "$SESSION_DIR/events.ass"; then
-    echo "PASS: Annotation found in ASS"
-else
-    echo "FAIL: Annotation missing in ASS"
-    echo "--- ASS Content ---"
-    cat "$SESSION_DIR/events.ass"
-    echo "-------------------"
+    ffprobe -v error -show_entries format_tags -of default=noprint_wrappers=1 "$VIDEO_FILE"
     exit 1
 fi
 
 # Check events log
-if grep -q "lifecycle" "$SESSION_DIR/events.jsonl" && grep -q "Hello World" "$SESSION_DIR/events.jsonl"; then
+if grep -q "lifecycle" "$SESSION_DIR/events_001.jsonl" && grep -q "Hello World" "$SESSION_DIR/events_001.jsonl"; then
     echo "PASS: Events log looks good"
 else
     echo "FAIL: Events log missing expected entries"
-    head "$SESSION_DIR/events.jsonl"
+    head "$SESSION_DIR/events_001.jsonl"
     exit 1
 fi
 

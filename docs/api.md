@@ -234,7 +234,102 @@ Focus a specific window.
 #### `POST /input/mouse/click`
 Click at specific coordinates.
 - **Body:** `{"x": 100, "y": 200}`
-- **Response:** `{"status": "clicked", ...}`
+- **Response:** `{"status": "clicked", "trace_id": "...", ...}`
+
+#### `GET /input/trace/status`
+Get input trace status for the active session.
+- **Response:** `{"running": true, "pid": 123, "state": "running", "log_path": "...", ...}`
+
+#### `POST /input/trace/start`
+Start input tracing (mouse motion, clicks, keypresses).
+- **Body (optional):**
+  ```json
+  {
+    "include_raw": false,
+    "motion_sample_ms": 0
+  }
+  ```
+- **Response:** `{"status": "started", "pid": 123, "log_path": "..."}`
+
+#### `POST /input/trace/stop`
+Stop input tracing.
+- **Response:** `{"status": "stopped", "session_dir": "..."}`
+
+#### `GET /input/trace/x11core/status`
+Get X11 core input trace status (xinput test).
+- **Response:** `{"running": true, "pid": 123, "state": "running", "log_path": "...", ...}`
+
+#### `POST /input/trace/x11core/start`
+Start X11 core input tracing.
+- **Body (optional):**
+  ```json
+  {
+    "motion_sample_ms": 10
+  }
+  ```
+- **Response:** `{"status": "started", "pid": 123, "log_path": "..."}`
+
+#### `POST /input/trace/x11core/stop`
+Stop X11 core input tracing.
+- **Response:** `{"status": "stopped", "session_dir": "..."}`
+
+#### `GET /input/trace/client/status`
+Get client (noVNC) input trace status.
+- **Response:** `{"enabled": true, "log_path": "...", ...}`
+
+#### `POST /input/trace/client/start`
+Enable client (noVNC) input trace collection.
+- **Response:** `{"status":"enabled","log_path":"..."}`
+
+#### `POST /input/trace/client/stop`
+Disable client (noVNC) input trace collection.
+- **Response:** `{"status":"disabled","session_dir":"..."}`
+
+#### `POST /input/client/event`
+Ingest a client (noVNC UI) input event.
+- **Body:** arbitrary JSON fields for the event.
+- **Response:** `{"status":"ok"}` (or `{"status":"ignored"}` when disabled).
+
+#### `GET /input/trace/windows/status`
+Get Windows-side input trace status.
+- **Response:** `{"running": true, "pid": 123, "state": "running", "backend": "hook", "log_path": "...", ...}`
+
+#### `POST /input/trace/windows/start`
+Start Windows-side input tracing.
+- **Body (optional):**
+  ```json
+  {
+    "motion_sample_ms": 10,
+    "debug_keys": ["vk41", "LButton"],
+    "debug_keys_csv": "vk41,LButton",
+    "debug_sample_ms": 200,
+    "backend": "auto"
+  }
+  ```
+- **Notes:** `backend` may be `auto`, `ahk`, or `hook`. `hook` uses the low-level Windows hook observer; `ahk` uses AutoHotkey.
+- **Response:** `{"status":"started","pid":123,"log_path":"...","backend":"hook"}`
+
+#### `POST /input/trace/windows/stop`
+Stop Windows-side input tracing.
+- **Response:** `{"status":"stopped","session_dir":"..."}`
+
+#### `GET /input/trace/network/status`
+Get network input trace status (VNC proxy).
+- **Response:** `{"running": true, "pid": 123, "state": "enabled", "log_path": "...", ...}`
+
+#### `POST /input/trace/network/start`
+Enable network input trace logging (proxy must be running).
+- **Response:** `{"status":"enabled","session_dir":"..."}`
+
+#### `POST /input/trace/network/stop`
+Disable network input trace logging (proxy must be running).
+- **Response:** `{"status":"disabled","session_dir":"..."}`
+
+#### `GET /input/events`
+Return recent input trace events.
+- **Query params:** `limit` (default 200), `since_epoch_ms` (optional), `source` (`x11` default, `x11_core`, `client`, `windows`, `network`)
+- **Response:** `{"events":[...], "log_path":"..."}`
+Each event includes `origin` (`user`/`agent`/`unknown`) and `tool` when known.
 
 #### `POST /apps/run`
 Run a Windows application.
@@ -259,7 +354,7 @@ Run an AutoHotkey script.
     "focus_title": "Notepad" // Optional: Focus this window before running
   }
   ```
-- **Response:** `{"status": "success", "log": "..."}`
+- **Response:** `{"status": "success", "stdout": "...", "stderr": "...", "log_path": "...", "log_tail": "..." }`
 - **Artifacts:** Script and logs are stored under the current session (`<session_dir>/scripts` and `<session_dir>/logs`).
 
 #### `POST /run/autoit`

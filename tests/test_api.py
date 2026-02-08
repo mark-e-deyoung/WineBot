@@ -66,32 +66,30 @@ def test_health_system(_mock_node, _mock_meminfo, auth_headers):
         assert payload["hostname"] == "test-host"
         assert "uptime_seconds" in payload
 
-@patch("api.server.safe_command")
-def test_health_x11(mock_safe_command, auth_headers):
-    def side_effect(cmd, timeout=5):
+@patch("api.server.safe_async_command")
+def test_health_x11(mock_safe_async_command, auth_headers):
+    async def side_effect(cmd, timeout=5):
         if cmd[0] == "xdpyinfo":
             return {"ok": True}
-        if cmd[:2] == ["pgrep", "-x"]:
-            return {"ok": True, "stdout": "123"}
         if cmd[0] == "/automation/x11.sh":
             return {"ok": True, "stdout": "0xabc"}
         return {"ok": False}
-    mock_safe_command.side_effect = side_effect
+    mock_safe_async_command.side_effect = side_effect
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         response = client.get("/health/x11", headers=auth_headers)
         assert response.status_code == 200
         payload = response.json()
         assert payload["connected"] is True
 
-@patch("api.server.safe_command")
-def test_health_windows(mock_safe_command, auth_headers):
-    def side_effect(cmd, timeout=5):
+@patch("api.server.safe_async_command")
+def test_health_windows(mock_safe_async_command, auth_headers):
+    async def side_effect(cmd, timeout=5):
         if cmd[0] == "/automation/x11.sh" and cmd[1] == "list-windows":
             return {"ok": True, "stdout": "0x1 Title One\n0x2 Title Two"}
         if cmd[0] == "/automation/x11.sh" and cmd[1] == "active-window":
             return {"ok": True, "stdout": "0x1"}
         return {"ok": False}
-    mock_safe_command.side_effect = side_effect
+    mock_safe_async_command.side_effect = side_effect
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         response = client.get("/health/windows", headers=auth_headers)
         assert response.status_code == 200
@@ -403,9 +401,11 @@ def test_openbox_restart(mock_safe, auth_headers):
 @patch("subprocess.run")
 @patch("builtins.open", new_callable=MagicMock)
 @patch("os.path.exists")
-def test_run_ahk(mock_exists, mock_open, mock_run, auth_headers):
+@patch("os.path.getsize")
+def test_run_ahk(mock_getsize, mock_exists, mock_open, mock_run, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         mock_exists.return_value = True 
+        mock_getsize.return_value = 100
         mock_run.return_value.returncode = 0
         response = client.post("/run/ahk", json={"script": "MsgBox"}, headers=auth_headers)
         assert response.status_code == 200
@@ -413,9 +413,11 @@ def test_run_ahk(mock_exists, mock_open, mock_run, auth_headers):
 @patch("subprocess.run")
 @patch("builtins.open", new_callable=MagicMock)
 @patch("os.path.exists")
-def test_run_autoit(mock_exists, mock_open, mock_run, auth_headers):
+@patch("os.path.getsize")
+def test_run_autoit(mock_getsize, mock_exists, mock_open, mock_run, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         mock_exists.return_value = True
+        mock_getsize.return_value = 100
         mock_run.return_value.returncode = 0
         response = client.post("/run/autoit", json={"script": "MsgBox"}, headers=auth_headers)
         assert response.status_code == 200
@@ -437,9 +439,11 @@ def test_inspect_window_requires_target(auth_headers):
 @patch("subprocess.run")
 @patch("builtins.open", new_callable=MagicMock)
 @patch("os.path.exists")
-def test_inspect_window_list_only(mock_exists, mock_open, mock_run, auth_headers):
+@patch("os.path.getsize")
+def test_inspect_window_list_only(mock_getsize, mock_exists, mock_open, mock_run, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         mock_exists.return_value = True
+        mock_getsize.return_value = 100
         mock_run.return_value.returncode = 0
         mock_open.return_value.__enter__.return_value.read.return_value = '{"windows":[]}'
         response = client.post("/inspect/window", json={"list_only": True}, headers=auth_headers)

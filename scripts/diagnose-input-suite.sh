@@ -243,6 +243,10 @@ test_winefile() {
 
 # Run Suite
 cleanup
+if [ "${TRACE_BISECT:-1}" = "1" ] && [ -x "/scripts/diagnose-input-trace.sh" ]; then
+  log "=== Trace Bisect ==="
+  /scripts/diagnose-input-trace.sh || log "Trace bisect failed"
+fi
 test_notepad
 test_regedit
 test_winefile

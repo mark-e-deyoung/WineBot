@@ -39,7 +39,23 @@ rm -f "/tmp/.X${DISPLAY##*:}-lock" "/tmp/.X11-unix/X${DISPLAY##*:}"
 # 2. Start Xvfb
 Xvfb "$DISPLAY" -screen 0 "$SCREEN" -ac +extension RANDR >/dev/null 2>&1 &
 XVFB_PID=$!
-sleep 1 # Give Xvfb a moment to start
+
+# Wait for Xvfb to be ready
+echo "--> Waiting for Xvfb on $DISPLAY..."
+for i in $(seq 1 30); do
+    if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+        echo "--> Xvfb is ready."
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "ERROR: Xvfb failed to start."
+        exit 1
+    fi
+    sleep 0.5
+done
+
+# Wait briefly for Openbox to register (optional but good practice)
+sleep 1
 
 # --- Session Setup ---
 SESSION_ROOT="${WINEBOT_SESSION_ROOT:-/artifacts/sessions}"
@@ -305,6 +321,10 @@ if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
     log_event "recorder_started" "Recorder started"
 fi
 
+INPUT_TRACE_PID=""
+INPUT_TRACE_WIN_PID=""
+INPUT_TRACE_NET_PID=""
+
 stop_recorder() {
     if [ -n "$RECORDER_PID" ]; then
         echo "--> Stopping Recorder..."
@@ -314,12 +334,41 @@ stop_recorder() {
     fi
 }
 
+stop_input_trace() {
+    if [ -n "${SESSION_DIR:-}" ]; then
+        python3 -m automation.input_trace stop --session-dir "$SESSION_DIR" >/dev/null 2>&1 || true
+    fi
+    if [ -n "$INPUT_TRACE_PID" ]; then
+        wait "$INPUT_TRACE_PID" || true
+        INPUT_TRACE_PID=""
+    fi
+}
+
+stop_input_trace_windows() {
+    if [ -n "$INPUT_TRACE_WIN_PID" ]; then
+        kill "$INPUT_TRACE_WIN_PID" >/dev/null 2>&1 || true
+        wait "$INPUT_TRACE_WIN_PID" >/dev/null 2>&1 || true
+        INPUT_TRACE_WIN_PID=""
+    fi
+}
+
+stop_input_trace_network() {
+    if [ -n "$INPUT_TRACE_NET_PID" ]; then
+        kill "$INPUT_TRACE_NET_PID" >/dev/null 2>&1 || true
+        wait "$INPUT_TRACE_NET_PID" >/dev/null 2>&1 || true
+        INPUT_TRACE_NET_PID=""
+    fi
+}
+
 shutdown_notice() {
     log_event "shutdown_requested" "Shutdown requested"
     if [ -n "${SESSION_DIR:-}" ]; then
         echo "stopped" > "${SESSION_DIR}/session.state" || true
     fi
     stop_recorder
+    stop_input_trace
+    stop_input_trace_windows
+    stop_input_trace_network
 }
 
 trap 'shutdown_notice' EXIT
@@ -328,7 +377,22 @@ trap 'shutdown_notice' EXIT
 # 4. Start VNC/noVNC if requested
 if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
     echo "--> Starting VNC/noVNC services..."
-    VNC_ARGS=("-display" "$DISPLAY" "-forever" "-shared" "-rfbport" "${VNC_PORT:-5900}" "-bg" "-noxrecord" "-ncache" "0" "-cursor" "arrow" "-v")
+    VNC_PORT="${VNC_PORT:-5900}"
+    X11VNC_PORT="$VNC_PORT"
+    if [ "${WINEBOT_INPUT_TRACE_NETWORK:-0}" = "1" ]; then
+        X11VNC_PORT=$((VNC_PORT + 1))
+        NET_SAMPLE_MS="${WINEBOT_INPUT_TRACE_NETWORK_SAMPLE_MS:-10}"
+        python3 -m automation.vnc_input_proxy \
+            --listen-port "$VNC_PORT" \
+            --target-port "$X11VNC_PORT" \
+            --session-dir "$SESSION_DIR" \
+            --sample-motion-ms "$NET_SAMPLE_MS" >/dev/null 2>&1 &
+        INPUT_TRACE_NET_PID=$!
+        echo "$INPUT_TRACE_NET_PID" > "${SESSION_DIR}/input_trace_network.pid" || true
+        echo "enabled" > "${SESSION_DIR}/input_trace_network.state" || true
+        log_event "input_trace_network_started" "Network input trace started"
+    fi
+    VNC_ARGS=("-display" "$DISPLAY" "-forever" "-shared" "-rfbport" "$X11VNC_PORT" "-bg" "-noxrecord" "-ncache" "0" "-cursor" "arrow" "-v" "-threads")
     if [ -n "${VNC_PASSWORD:-}" ]; then
         mkdir -p "$HOME/.vnc"
         x11vnc -storepasswd "$VNC_PASSWORD" "$HOME/.vnc/passwd"
@@ -340,22 +404,97 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
     log_event "vnc_started" "x11vnc started"
 
     # Start noVNC (websockify)
-    websockify --web /usr/share/novnc/ "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT:-5900}" >/dev/null 2>&1 &
+    websockify --web /usr/share/novnc/ "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT}" >/dev/null 2>&1 &
     log_event "novnc_started" "noVNC started"
 fi
 
+if [ "${WINEBOT_INPUT_TRACE:-0}" = "1" ]; then
+    echo "--> Starting input trace..."
+    TRACE_ARGS=()
+    if [ "${WINEBOT_INPUT_TRACE_RAW:-0}" = "1" ]; then
+        TRACE_ARGS+=(--include-raw)
+    fi
+    if [ -n "${WINEBOT_INPUT_TRACE_MOTION_SAMPLE_MS:-}" ]; then
+        TRACE_ARGS+=(--motion-sample-ms "$WINEBOT_INPUT_TRACE_MOTION_SAMPLE_MS")
+    fi
+    python3 -m automation.input_trace start --session-dir "$SESSION_DIR" "${TRACE_ARGS[@]}" >/dev/null 2>&1 &
+    INPUT_TRACE_PID=$!
+    log_event "input_trace_started" "Input trace started"
+fi
+
 # 5. Initialize Wine Prefix (if needed)
+# Crucial: Ensure no stale wineserver is running from before X was ready
+wineserver -k || true
+sleep 1
+
+echo "--> Ensuring wineserver is running..."
+wineserver -p >/dev/null 2>&1 &
+sleep 2
+
+# Driver Check: Verify if Wine can actually load the X11 driver
+echo "--> Verifying Wine X11 driver capability..."
+if ! wine cmd /c "echo Driver Check" >/dev/null 2>&1; then
+    echo "WARNING: Wine basic check failed. Driver might be missing or X11 unreachable."
+fi
+
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX..."
     annotate_safe "Initializing WINEPREFIX..." "lifecycle" "entrypoint"
     log_event "wineboot_init" "Initializing WINEPREFIX"
-    wineboot --init >/dev/null 2>&1
+    wineboot -u >/dev/null 2>&1 || true
+    # Wait for wineserver to settle
+    wineserver -w
+
+    # Optimization: Disable winebth (Bluetooth) to stop driver errors and delays
+    echo "--> Optimizing Wine Prefix..."
+    wine reg add "HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\winebth" /v Start /t REG_DWORD /d 4 /f >/dev/null 2>&1
+    
+    # Optimization: Enable Font Smoothing for better OCR/CV results
+    wine reg add "HKEY_CURRENT_USER\\Control Panel\\Desktop" /v FontSmoothing /t REG_SZ /d 2 /f >/dev/null 2>&1
+    wine reg add "HKEY_CURRENT_USER\\Control Panel\\Desktop" /v FontSmoothingType /t REG_DWORD /d 2 /f >/dev/null 2>&1
+
     annotate_safe "WINEPREFIX ready" "lifecycle" "entrypoint"
     log_event "wineboot_ready" "WINEPREFIX ready"
-else
-    # Ensure Wine services (explorer, etc.) are running
-    wine explorer >/dev/null 2>&1 &
-    log_event "wine_explorer_started" "Wine explorer started"
+fi
+
+# Supervisor: Ensure explorer runs and stays maximized
+echo "--> Starting Desktop Supervisor..."
+log_event "supervisor_started" "Starting Desktop Supervisor"
+
+(
+  while true; do
+    # 1. Ensure Explorer is running
+    # We grep for 'explorer.exe' in the full command line.
+    if ! pgrep -f "explorer.exe" > /dev/null; then
+        echo "--> (Supervisor) Explorer not found, starting..."
+        # Use nohup to detach, redirect output to prevent buffer filling
+        nohup wine explorer.exe /desktop=Default,${SCREEN%x*} >/dev/null 2>&1 &
+        sleep 2 # Give it a moment to spawn
+    fi
+
+    # 2. Ensure Desktop Window is maximized and undecorated
+    # Wine 10.0 often uses "Wine Desktop", older versions "Desktop".
+    for title in "Desktop" "Wine Desktop"; do
+      if xdotool search --name "$title" >/dev/null 2>&1; then
+        # Force remove decorations
+        wmctrl -r "$title" -b add,undecorated >/dev/null 2>&1 || true
+        # Force move/resize to fill screen
+        xdotool search --name "$title" windowmove 0 0 windowsize ${SCREEN%x*} >/dev/null 2>&1 || true
+      fi
+    done
+    
+    sleep 2
+  done
+) &
+
+
+if [ "${WINEBOT_INPUT_TRACE_WINDOWS:-0}" = "1" ]; then
+    echo "--> Starting Windows input trace..."
+    WIN_TRACE_MS="${WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS:-10}"
+    ahk /automation/input_trace_windows.ahk "Z:${SESSION_DIR//\//\\}\\logs\\input_events_windows.jsonl" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
+    INPUT_TRACE_WIN_PID=$!
+    echo "$INPUT_TRACE_WIN_PID" > "${SESSION_DIR}/input_trace_windows.pid" || true
+    log_event "input_trace_windows_started" "Windows input trace started"
 fi
 
 # 6. Execute under winedbg if requested
@@ -372,11 +511,14 @@ if [ "${ENABLE_API:-0}" = "1" ]; then
     echo "Starting API server on port 8000..."
     annotate_safe "Starting API server" "lifecycle" "entrypoint"
     log_event "api_starting" "Starting API server"
-    # Ensure X11 env is sourced for the python process if needed, 
-    # though subprocess calls in server.py usually source x11_env.sh via wrapper scripts.
+    
+    # Ensure X11 env vars are available to the API process
+    export DISPLAY="${DISPLAY}"
+    export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+    
     # We run it as winebot user.
     if [ "$(id -u)" = "0" ]; then
-        gosu winebot uvicorn api.server:app --host 0.0.0.0 --port 8000 > "$SESSION_DIR/logs/api.log" 2>&1 &
+        gosu winebot bash -c "export DISPLAY=$DISPLAY; uvicorn api.server:app --host 0.0.0.0 --port 8000" > "$SESSION_DIR/logs/api.log" 2>&1 &
     else
         uvicorn api.server:app --host 0.0.0.0 --port 8000 > "$SESSION_DIR/logs/api.log" 2>&1 &
     fi
@@ -384,7 +526,7 @@ if [ "${ENABLE_API:-0}" = "1" ]; then
 fi
 
 # Keep container alive (if no command provided)
-if [ -z "$@" ]; then
+if [ $# -eq 0 ]; then
     annotate_safe "Container idle (waiting)" "lifecycle" "entrypoint"
     tail -f /dev/null
 else

@@ -52,6 +52,57 @@ Useful Linux-side tools for observing the Wine environment:
 - `ps`, `top`, and `/proc` (via `procps`) for process state
 - Optional: `strace`, `ltrace`, `lsof`, `tcpdump` if you add them to the image
 
+## Input tracing
+
+WineBot can record detailed input events (mouse motion, clicks, key presses) from both interactive use (VNC/noVNC) and agent-driven actions.
+
+### Enable via env
+Set `WINEBOT_INPUT_TRACE=1` when starting the container. Optional tuning:
+- `WINEBOT_INPUT_TRACE_RAW=1`: include raw `xinput` lines in each event.
+- `WINEBOT_INPUT_TRACE_MOTION_SAMPLE_MS=NN`: sample motion events (0 = no sampling).
+- `WINEBOT_INPUT_TRACE_WINDOWS=1`: enable Windows-side input tracing (AutoHotkey).
+- `WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS=NN`: mouse move sample interval for Windows tracing (default 10ms).
+- `WINEBOT_INPUT_TRACE_NETWORK=1`: enable VNC network proxy tracing (requires container restart).
+- `WINEBOT_INPUT_TRACE_NETWORK_SAMPLE_MS=NN`: sample motion events for network tracing (default 10ms).
+- `WINEBOT_INPUT_TRACE_RECORD=1`: add input trace events into recording subtitles.
+
+### Enable via API
+```bash
+curl -X POST http://localhost:8000/input/trace/start
+curl -X GET  http://localhost:8000/input/trace/status
+curl -X POST http://localhost:8000/input/trace/stop
+```
+
+Windows-side tracing (AutoHotkey):
+```bash
+curl -X POST http://localhost:8000/input/trace/windows/start
+curl -X GET  http://localhost:8000/input/trace/windows/status
+curl -X POST http://localhost:8000/input/trace/windows/stop
+```
+
+Client-side tracing (noVNC UI):
+```bash
+curl -X POST http://localhost:8000/input/trace/client/start
+curl -X GET  http://localhost:8000/input/trace/client/status
+curl -X POST http://localhost:8000/input/trace/client/stop
+```
+
+Network tracing (VNC proxy):
+```bash
+curl -X GET  http://localhost:8000/input/trace/network/status
+curl -X POST http://localhost:8000/input/trace/network/start
+curl -X POST http://localhost:8000/input/trace/network/stop
+```
+
+### Read recent events
+```bash
+curl "http://localhost:8000/input/events?limit=50"
+curl "http://localhost:8000/input/events?limit=50&source=client"
+curl "http://localhost:8000/input/events?limit=50&source=windows"
+```
+
+Events are written to `logs/input_events*.jsonl` inside the session directory.
+
 ## Headless GUI Debugging
 
 WineBot includes helpers to make headless debugging easier (especially with Xvfb).

@@ -32,6 +32,7 @@ Commands:
   windows list|active|search|focus [opts]
   apps list|run [opts]
   input click X Y
+  input trace start|stop|status|events [opts]
   run ahk|autoit|python|winedbg [opts]
   inspect window [opts]
 
@@ -39,6 +40,9 @@ Examples:
   scripts/winebotctl health
   scripts/winebotctl sessions list
   scripts/winebotctl recording start --session-root /artifacts/sessions
+  scripts/winebotctl input trace start --layer windows
+  scripts/winebotctl input trace start --layer network
+  scripts/winebotctl input trace events --source client --limit 50
   scripts/winebotctl api POST /sessions/suspend --json '{"shutdown_wine":true}'
 EOF
 }
@@ -755,6 +759,151 @@ PY
         require_arg "y" "$y"
         json_body="$(json_from_kv "x=${x}" "y=${y}")"
         resp="$(api_request POST "/input/mouse/click" "$json_body" "0")"
+        ;;
+      trace)
+        action="${1:-}"
+        shift || true
+        case "$action" in
+          start)
+            layer="x11"
+            include_raw="false"
+            motion_sample_ms=""
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --layer)
+                  layer="$2"
+                  shift 2
+                  ;;
+                --include-raw)
+                  include_raw="true"
+                  shift
+                  ;;
+                --motion-sample-ms)
+                  motion_sample_ms="$2"
+                  shift 2
+                  ;;
+                *)
+                  die "Unknown input trace start option: $1"
+                  ;;
+              esac
+            done
+            json_body="$(json_from_kv "include_raw=${include_raw}" "motion_sample_ms=${motion_sample_ms}")"
+            case "$layer" in
+              x11)
+                resp="$(api_request POST "/input/trace/start" "$json_body" "0")"
+                ;;
+              windows)
+                resp="$(api_request POST "/input/trace/windows/start" "$json_body" "0")"
+                ;;
+              client)
+                resp="$(api_request POST "/input/trace/client/start" "" "0")"
+                ;;
+              network)
+                resp="$(api_request POST "/input/trace/network/start" "" "0")"
+                ;;
+              *)
+                die "Unknown input trace layer: $layer"
+                ;;
+            esac
+            ;;
+          stop)
+            layer="x11"
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --layer)
+                  layer="$2"
+                  shift 2
+                  ;;
+                *)
+                  die "Unknown input trace stop option: $1"
+                  ;;
+              esac
+            done
+            case "$layer" in
+              x11)
+                resp="$(api_request POST "/input/trace/stop" "" "0")"
+                ;;
+              windows)
+                resp="$(api_request POST "/input/trace/windows/stop" "" "0")"
+                ;;
+              client)
+                resp="$(api_request POST "/input/trace/client/stop" "" "0")"
+                ;;
+              network)
+                resp="$(api_request POST "/input/trace/network/stop" "" "0")"
+                ;;
+              *)
+                die "Unknown input trace layer: $layer"
+                ;;
+            esac
+            ;;
+          status)
+            layer="x11"
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --layer)
+                  layer="$2"
+                  shift 2
+                  ;;
+                *)
+                  die "Unknown input trace status option: $1"
+                  ;;
+              esac
+            done
+            case "$layer" in
+              x11)
+                resp="$(api_request GET "/input/trace/status")"
+                ;;
+              windows)
+                resp="$(api_request GET "/input/trace/windows/status")"
+                ;;
+              client)
+                resp="$(api_request GET "/input/trace/client/status")"
+                ;;
+              network)
+                resp="$(api_request GET "/input/trace/network/status")"
+                ;;
+              *)
+                die "Unknown input trace layer: $layer"
+                ;;
+            esac
+            ;;
+          events)
+            limit="200"
+            since=""
+            source=""
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --limit)
+                  limit="$2"
+                  shift 2
+                  ;;
+                --since-epoch-ms)
+                  since="$2"
+                  shift 2
+                  ;;
+                --source)
+                  source="$2"
+                  shift 2
+                  ;;
+                *)
+                  die "Unknown input trace events option: $1"
+                  ;;
+              esac
+            done
+            path="/input/events?limit=${limit}"
+            if [ -n "$since" ]; then
+              path="${path}&since_epoch_ms=${since}"
+            fi
+            if [ -n "$source" ]; then
+              path="${path}&source=${source}"
+            fi
+            resp="$(api_request GET "$path")"
+            ;;
+          *)
+            die "Unknown input trace action: $action"
+            ;;
+        esac
         ;;
       *)
         die "Unknown input command: $sub"

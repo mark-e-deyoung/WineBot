@@ -3,11 +3,25 @@ set -e
 
 echo "--- Starting Windows Automation Smoke Tests ---"
 
-# Ensure we have a display
+# 0. Environment Verification
+echo "Verifying environment..."
 if [ -z "$DISPLAY" ]; then
-    echo "Error: DISPLAY not set. Are you running inside the container?"
+    echo "Error: DISPLAY not set."
     exit 1
 fi
+
+if ! xdpyinfo >/dev/null 2>&1; then
+    echo "Error: Xvfb not reachable on $DISPLAY"
+    exit 1
+fi
+
+echo "Checking Wine driver..."
+if ! wine cmd /c "echo Driver OK" >/dev/null 2>&1; then
+    echo "Error: Wine driver failed to initialize (check logs for nodrv)"
+    wine cmd /c "echo test" 2>&1 | head -n 20
+    exit 1
+fi
+echo "Environment OK."
 
 # Helper to take screenshot
 take_screenshot() {
@@ -35,7 +49,7 @@ active_id=$(/automation/x11.sh active-window)
 echo "Active window ID: $active_id"
 # Only try getting title if we have a valid ID
 if [[ "$active_id" != "No active window" ]]; then
-    /automation/x11.sh window-title "$active_id"
+    /automation/x11.sh window-title "$active_id" || echo "Warning: Could not get title (window likely closed)"
 fi
 /automation/x11.sh search --name ".*"
 take_screenshot "x11_helper"

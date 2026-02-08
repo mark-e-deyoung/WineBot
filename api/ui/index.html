@@ -631,10 +631,30 @@
               <span>View Only</span>
             </label>
           </div>
+          <div class="config-block">
+            <label class="toggle">
+              <input type="checkbox" id="vnc-trace-input" />
+              <span>Trace Input (client)</span>
+            </label>
+            <div class="hint">Log client-side mouse/key events to help diagnose input issues.</div>
+          </div>
           <div class="button-row" style="margin-top: 10px;">
             <button id="btn-vnc-reconnect" class="secondary">Reconnect VNC</button>
+            <button id="btn-force-focus" class="secondary">Force App Focus</button>
+            <button id="btn-reset-workspace" class="secondary">Reset Workspace</button>
             <button id="btn-inject-click" class="secondary" disabled>Inject Last Click</button>
           </div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-collapsible>
+        <div class="section-title">
+          <span>Input Debug</span>
+          <button class="section-toggle" type="button" aria-expanded="true">▾</button>
+        </div>
+        <div class="panel-body">
+          <div id="input-debug-stats" class="status-text">Last event: none</div>
+          <div id="input-debug-log" class="code-block" style="height: 100px;"></div>
         </div>
       </div>
 
@@ -795,10 +815,49 @@
 
     const vncScaleToggle = document.getElementById("vnc-scale");
     const vncViewOnlyToggle = document.getElementById("vnc-view-only");
+    const vncTraceToggle = document.getElementById("vnc-trace-input");
     const vncReconnectBtn = document.getElementById("btn-vnc-reconnect");
+    const vncForceFocusBtn = document.getElementById("btn-force-focus");
     const vncInjectBtn = document.getElementById("btn-inject-click");
+    const inputDebugStats = document.getElementById("input-debug-stats");
+    const inputDebugLog = document.getElementById("input-debug-log");
 
     let lastVncClick = null;
+
+    function updateInputDebug(msg) {
+      inputDebugStats.textContent = `Last event: ${msg}`;
+      const div = document.createElement("div");
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      inputDebugLog.prepend(div);
+      if (inputDebugLog.childNodes.length > 20) {
+        inputDebugLog.lastChild.remove();
+      }
+    }
+
+    async function forceAppFocus() {
+      updateInputDebug("Requesting app focus...");
+      try {
+        const res = await apiFetch("/health/windows");
+        const data = await res.json();
+        const windows = data.windows || [];
+        // Look for typical apps
+        const target = windows.find(w => /notepad|regedit|winefile/i.test(w.title));
+        if (target) {
+          logMessage("info", `Targeting window for focus: ${target.title} (${target.id})`);
+          await apiFetch("/inspect/window", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ window_id: target.id, focus: true })
+          });
+          updateInputDebug(`Focused ${target.title}`);
+        } else {
+          logMessage("warn", "No known automation window found to focus.");
+          updateInputDebug("No target window found");
+        }
+      } catch (err) {
+        logMessage("error", `Focus error: ${err.message}`);
+      }
+    }
 
     const screenshotBtn = document.getElementById("btn-screenshot");
     const screenshotDownloadBtn = document.getElementById("btn-screenshot-download");
@@ -834,6 +893,10 @@
     let rfbInstance = null;
     let vncNeedsCredentials = false;
     let vncConnected = false;
+    let vncTraceEnabled = false;
+    let vncTraceCanvas = null;
+    let vncTraceLastMoveTs = 0;
+    let vncKeyListenersAttached = false;
     let pollTimer = null;
     let pollStopped = false;
     let pollMode = "normal";
@@ -878,10 +941,117 @@
       }
     }
 
+    function canTraceClientEvent() {
+      return vncTraceEnabled && vncConnected && vncTraceCanvas;
+    }
+
+    function getCanvasCoords(canvas, e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      const scaleX = rect.width ? (canvas.width / rect.width) : 0;
+      const scaleY = rect.height ? (canvas.height / rect.height) : 0;
+      const vncX = Math.floor(clientX * scaleX);
+      const vncY = Math.floor(clientY * scaleY);
+      return {
+        client_x: Math.round(clientX),
+        client_y: Math.round(clientY),
+        vnc_x: vncX,
+        vnc_y: vncY,
+        canvas_width: canvas.width,
+        canvas_height: canvas.height,
+        client_width: Math.round(rect.width),
+        client_height: Math.round(rect.height),
+        scale_x: scaleX ? Number(scaleX.toFixed(4)) : 0,
+        scale_y: scaleY ? Number(scaleY.toFixed(4)) : 0
+      };
+    }
+
+    async function postClientTraceEvent(payload) {
+      if (!canTraceClientEvent()) {
+        return;
+      }
+      try {
+        payload.origin = payload.origin || "user";
+        payload.tool = payload.tool || "novnc-ui";
+        payload.layer = payload.layer || "client";
+        await apiFetch("/input/client/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {}
+    }
+
+    async function refreshClientTraceStatus() {
+      try {
+        const res = await apiFetch("/input/trace/client/status");
+        if (!res || !res.ok) {
+          return;
+        }
+        const data = await safeJson(res);
+        const enabled = Boolean(data && data.enabled);
+        vncTraceEnabled = enabled;
+        vncTraceToggle.checked = enabled;
+      } catch (err) {}
+    }
+
+    async function setClientTraceEnabled(enabled) {
+      try {
+        const path = enabled ? "/input/trace/client/start" : "/input/trace/client/stop";
+        const res = await apiFetch(path, { method: "POST" });
+        if (res && res.ok) {
+          vncTraceEnabled = enabled;
+          vncTraceToggle.checked = enabled;
+        }
+      } catch (err) {}
+    }
+
+    function attachVncKeyListeners() {
+      if (vncKeyListenersAttached) {
+        return;
+      }
+      vncKeyListenersAttached = true;
+      window.addEventListener("keydown", (e) => {
+        if (!canTraceClientEvent()) return;
+        if (document.activeElement && vncTraceCanvas && document.activeElement !== vncTraceCanvas) {
+          return;
+        }
+        postClientTraceEvent({
+          event: "client_key_down",
+          key: e.key,
+          code: e.code,
+          key_code: e.keyCode,
+          repeat: e.repeat,
+          ctrl: e.ctrlKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+          meta: e.metaKey
+        });
+      }, true);
+      window.addEventListener("keyup", (e) => {
+        if (!canTraceClientEvent()) return;
+        if (document.activeElement && vncTraceCanvas && document.activeElement !== vncTraceCanvas) {
+          return;
+        }
+        postClientTraceEvent({
+          event: "client_key_up",
+          key: e.key,
+          code: e.code,
+          key_code: e.keyCode,
+          ctrl: e.ctrlKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+          meta: e.metaKey
+        });
+      }, true);
+    }
+
 
     function resetVncCanvas() {
       const canvases = vncContainer.querySelectorAll("canvas");
       canvases.forEach((canvas) => canvas.remove());
+      vncTraceCanvas = null;
     }
 
     function setBadge(element, text, state) {
@@ -1143,10 +1313,11 @@
           apiFetch("/health/recording"),
           apiFetch("/health/storage"),
           apiFetch("/lifecycle/status"),
-          apiFetch("/lifecycle/events?limit=6")
+          apiFetch("/lifecycle/events?limit=6"),
+          apiFetch("/input/trace/client/status")
         ]);
 
-        const [healthRes, x11Res, windowsRes, recordingRes, storageRes, lifecycleRes, eventsRes] =
+        const [healthRes, x11Res, windowsRes, recordingRes, storageRes, lifecycleRes, eventsRes, clientTraceRes] =
           results.map((result) => (result.status === "fulfilled" ? result.value : null));
 
         const healthData = healthRes ? await safeJson(healthRes) : null;
@@ -1156,6 +1327,7 @@
         const storageData = storageRes ? await safeJson(storageRes) : null;
         const lifecycleData = lifecycleRes ? await safeJson(lifecycleRes) : null;
         const eventsData = eventsRes ? await safeJson(eventsRes) : null;
+        const clientTraceData = clientTraceRes ? await safeJson(clientTraceRes) : null;
 
         const apiForbidden = Boolean(healthRes && healthRes.status === 403);
         const apiHealthy = Boolean(healthRes && healthRes.ok && healthData);
@@ -1247,6 +1419,14 @@
           recordStopBtn.disabled = true;
         } else {
           setBadge(badgeRecording, `/health/recording: error`, "error");
+        }
+
+        if (clientTraceRes && clientTraceRes.ok && clientTraceData) {
+          const enabled = Boolean(clientTraceData.enabled);
+          if (vncTraceEnabled !== enabled) {
+            vncTraceEnabled = enabled;
+            vncTraceToggle.checked = enabled;
+          }
         }
 
         if (storageRes && storageRes.ok && storageData) {
@@ -1526,8 +1706,27 @@
           rfbInstance.viewOnly = vncViewOnlyToggle.checked;
         }
       });
+      vncTraceToggle.addEventListener("change", () => {
+        setClientTraceEnabled(vncTraceToggle.checked);
+      });
       vncReconnectBtn.addEventListener("click", () => {
         restartVnc();
+      });
+      vncForceFocusBtn.addEventListener("click", () => {
+        forceAppFocus();
+      });
+      document.getElementById("btn-reset-workspace").addEventListener("click", async () => {
+        logMessage("info", "Resetting workspace (desktop resolution/decorations)...");
+        try {
+          const res = await apiFetch("/lifecycle/reset_workspace", { method: "POST" });
+          if (res.ok) {
+            logMessage("info", "Workspace reset request sent.");
+          } else {
+            logMessage("error", `Workspace reset failed: ${res.status}`);
+          }
+        } catch (err) {
+          logMessage("error", `Workspace reset error: ${err.message}`);
+        }
       });
       vncInjectBtn.addEventListener("click", async () => {
         if (!lastVncClick) return;
@@ -1676,6 +1875,8 @@
           }
           const canvas = vncContainer.querySelector("canvas");
           if (canvas) {
+            vncTraceCanvas = canvas;
+            attachVncKeyListeners();
             canvas.addEventListener("mousedown", (e) => {
               const rect = canvas.getBoundingClientRect();
               const x = e.clientX - rect.left;
@@ -1684,8 +1885,63 @@
               const vncY = Math.floor(y * (canvas.height / rect.height));
               lastVncClick = { x: vncX, y: vncY };
               vncInjectBtn.disabled = false;
+              updateInputDebug(`Mousedown: client(${Math.round(x)},${Math.round(y)}) -> VNC(${vncX},${vncY})`);
               logMessage("info", `Mouse down at client(${Math.round(x)}, ${Math.round(y)}) -> VNC(${vncX}, ${vncY})`);
             });
+            canvas.addEventListener("mousedown", (e) => {
+              if (!canTraceClientEvent()) return;
+              const coords = getCanvasCoords(canvas, e);
+              postClientTraceEvent({
+                event: "client_mouse_down",
+                button: e.button,
+                buttons: e.buttons,
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey,
+                meta: e.metaKey,
+                ...coords
+              });
+            });
+            canvas.addEventListener("mouseup", (e) => {
+              if (!canTraceClientEvent()) return;
+              const coords = getCanvasCoords(canvas, e);
+              postClientTraceEvent({
+                event: "client_mouse_up",
+                button: e.button,
+                buttons: e.buttons,
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey,
+                meta: e.metaKey,
+                ...coords
+              });
+            });
+            canvas.addEventListener("mousemove", (e) => {
+              if (!canTraceClientEvent()) return;
+              const now = performance.now();
+              if (now - vncTraceLastMoveTs < 25) {
+                return;
+              }
+              vncTraceLastMoveTs = now;
+              const coords = getCanvasCoords(canvas, e);
+              postClientTraceEvent({
+                event: "client_mouse_move",
+                buttons: e.buttons,
+                ...coords
+              });
+            });
+            canvas.addEventListener("wheel", (e) => {
+              if (!canTraceClientEvent()) return;
+              const coords = getCanvasCoords(canvas, e);
+              postClientTraceEvent({
+                event: "client_mouse_wheel",
+                delta_x: e.deltaX,
+                delta_y: e.deltaY,
+                delta_z: e.deltaZ,
+                delta_mode: e.deltaMode,
+                ...coords
+              });
+            }, { passive: true });
             
             const rect = canvas.getBoundingClientRect();
             const scaleX = rect.width ? (canvas.width / rect.width) : 0;
@@ -1735,6 +1991,21 @@
       initVnc();
     }
 
+    async function updateVersion() {
+      const badgeVersion = document.getElementById("badge-version");
+      try {
+        const res = await apiFetch("/version");
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data && data.version) {
+            badgeVersion.textContent = `Release ${data.version}`;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch version:", err);
+      }
+    }
+
     initTokenControls();
     initVncControls();
     initActions();
@@ -1743,6 +2014,7 @@
     initCollapsibles();
     initVnc();
 
+    updateVersion();
     runPoll();
   </script>
 </body>

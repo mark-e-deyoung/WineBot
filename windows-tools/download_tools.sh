@@ -48,5 +48,14 @@ fi
 
 echo "Python installed."
 
+# --- 4. WinSpy++ ---
+echo "Downloading WinSpy++..."
+WINSPY_URL="https://github.com/strobejb/winspy/releases/download/v1.8.4/WinSpy_Release_x86.zip"
+mkdir -p "$TOOLS_DIR/WinSpy"
+curl -sL -o /tmp/winspy.zip "$WINSPY_URL"
+unzip -q -o /tmp/winspy.zip -d "$TOOLS_DIR/WinSpy"
+rm /tmp/winspy.zip
+echo "WinSpy++ installed."
+
 # Cleanup
 rm -rf /tmp/*.zip

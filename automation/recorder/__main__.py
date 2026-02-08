@@ -63,6 +63,125 @@ def load_events(session_dir: str, events_path: Optional[str] = None):
                     pass
     return events
 
+
+def input_recording_enabled() -> bool:
+    return os.getenv("WINEBOT_INPUT_TRACE_RECORD", "0") == "1"
+
+
+def read_manifest_start_epoch_ms(session_dir: str) -> Optional[int]:
+    segment_path = os.path.join(session_dir, SEGMENT_FILE)
+    manifest_path = None
+    try:
+        with open(segment_path, "r") as f:
+            segment = int(f.read().strip())
+        manifest_path = os.path.join(session_dir, f"segment_{segment:03d}.json")
+    except Exception:
+        manifest_path = None
+    if manifest_path and os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r") as f:
+                data = json.load(f)
+            start_epoch = data.get("start_time_epoch")
+            if start_epoch:
+                return int(float(start_epoch) * 1000)
+        except Exception:
+            pass
+    session_path = os.path.join(session_dir, "session.json")
+    if os.path.exists(session_path):
+        try:
+            with open(session_path, "r") as f:
+                data = json.load(f)
+            start_epoch = data.get("start_time_epoch")
+            if start_epoch:
+                return int(float(start_epoch) * 1000)
+        except Exception:
+            pass
+    return None
+
+
+def input_log_paths(session_dir: str):
+    return [
+        ("x11", os.path.join(session_dir, "logs", "input_events.jsonl")),
+        ("client", os.path.join(session_dir, "logs", "input_events_client.jsonl")),
+        ("windows", os.path.join(session_dir, "logs", "input_events_windows.jsonl")),
+        ("network", os.path.join(session_dir, "logs", "input_events_network.jsonl")),
+    ]
+
+
+def should_record_input_event(event: dict) -> bool:
+    ev = event.get("event")
+    if ev in ("button_press", "key_press", "client_mouse_down", "client_key_down", "agent_click", "mouse_down", "key_down"):
+        return True
+    if ev == "vnc_key":
+        return True
+    if ev == "vnc_pointer":
+        return int(event.get("button_mask", 0)) != 0
+    return False
+
+
+def input_event_message(event: dict) -> str:
+    parts = [event.get("event", "input")]
+    if event.get("button") is not None:
+        parts.append(f"button={event.get('button')}")
+    if event.get("button_mask") is not None:
+        parts.append(f"mask={event.get('button_mask')}")
+    if event.get("key") is not None:
+        parts.append(f"key={event.get('key')}")
+    if event.get("keycode") is not None:
+        parts.append(f"keycode={event.get('keycode')}")
+    if event.get("origin"):
+        parts.append(f"origin={event.get('origin')}")
+    if event.get("tool"):
+        parts.append(f"tool={event.get('tool')}")
+    return " ".join(parts)
+
+
+def load_input_trace_events(session_dir: str) -> list:
+    if not input_recording_enabled():
+        return []
+    start_epoch_ms = read_manifest_start_epoch_ms(session_dir)
+    if start_epoch_ms is None:
+        return []
+    session_id = os.path.basename(session_dir)
+    events = []
+    for layer, path in input_log_paths(session_dir):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not should_record_input_event(data):
+                        continue
+                    t_epoch = int(data.get("timestamp_epoch_ms", 0))
+                    if t_epoch <= 0:
+                        continue
+                    t_rel = max(0, t_epoch - start_epoch_ms)
+                    pos = None
+                    if data.get("x") is not None and data.get("y") is not None:
+                        pos = {"x": data.get("x"), "y": data.get("y")}
+                    msg = input_event_message(data)
+                    events.append(Event(
+                        session_id=session_id,
+                        t_rel_ms=t_rel,
+                        t_epoch_ms=t_epoch,
+                        level="INFO",
+                        kind="input",
+                        message=msg,
+                        pos=pos,
+                        tags=["input", layer],
+                        source=layer,
+                        extra=data,
+                    ))
+        except Exception:
+            continue
+    return events
+
 def read_pid(path: str) -> Optional[int]:
     try:
         with open(path, "r") as f:
@@ -314,8 +433,19 @@ def cmd_start(args):
             output_file = os.path.join(session_dir, f"video_{segment:03d}_part{part_index:03d}.mkv")
             if parts_file:
                 append_part(parts_file, output_file)
+        
+        meta = {
+            "title": manifest.session_id,
+            "encoder": "WineBot Recorder",
+            "creation_time": get_iso_time(),
+            "WINEBOT_SESSION_ID": manifest.session_id,
+            "WINEBOT_GIT_SHA": manifest.git_sha,
+            "WINEBOT_HOSTNAME": manifest.hostname,
+            "WINEBOT_DISPLAY": manifest.display
+        }
+        
         recorder = FFMpegRecorder(args.display, args.resolution, args.fps, output_file)
-        recorder.start()
+        recorder.start(metadata=meta)
         if recorder.process and recorder.process.pid:
             with open(os.path.join(session_dir, FFMPEG_PID_FILE), "w") as f:
                 f.write(str(recorder.process.pid))
@@ -373,6 +503,10 @@ def cmd_start(args):
         logger.info("Generating subtitles...")
         events = load_events(session_dir, events_path=events_path)
         events = adjust_events_for_pauses(events)
+        input_events = load_input_trace_events(session_dir)
+        if input_events:
+            events.extend(input_events)
+            events.sort(key=lambda e: e.t_rel_ms)
         gen = SubtitleGenerator(events)
         
         with open(vtt_path, "w") as f:

@@ -16,18 +16,28 @@ winebot_ensure_x11_env
 
 WINSPY_DIR="/opt/winebot/windows-tools/WinSpy"
 # Often standard unzip puts it in current dir or subdir.
-# The zip has "WinSpy.exe".
-EXE="$WINSPY_DIR/WinSpy.exe"
+# The zip has "winspy.exe".
+EXE="$WINSPY_DIR/winspy.exe"
+
+if [ ! -f "$EXE" ]; then
+    # Try alternate location
+    if [ -f "$HOME/windows-tools/WinSpy/winspy.exe" ]; then
+        WINSPY_DIR="$HOME/windows-tools/WinSpy"
+        EXE="$WINSPY_DIR/winspy.exe"
+    fi
+fi
 
 if [ ! -f "$EXE" ]; then
     # Try finding it in case structure differs
-    FOUND=$(find "$WINSPY_DIR" -name "WinSpy.exe" -print -quit)
+    FOUND=$(find "$WINSPY_DIR" -iname "winspy.exe" -print -quit 2>/dev/null || true)
+    if [ -z "$FOUND" ] && [ -d "$HOME/windows-tools/WinSpy" ]; then
+         FOUND=$(find "$HOME/windows-tools/WinSpy" -iname "winspy.exe" -print -quit 2>/dev/null || true)
+    fi
     if [ -n "$FOUND" ]; then
         EXE="$FOUND"
     else
-        echo "Error: WinSpy.exe not found."
-        echo "Please run 'bash /opt/winebot/windows-tools/install_inspectors.sh' (if inside container)"
-        echo "or 'windows-tools/install_inspectors.sh' (if outside and mounting volume)."
+        echo "Error: winspy.exe not found."
+        echo "Please run 'bash /scripts/install-inspectors.sh' (if inside container)"
         exit 1
     fi
 fi

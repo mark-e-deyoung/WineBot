@@ -12,7 +12,8 @@ RUN if [ -f /etc/apt/sources.list ]; then \
     && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         wine wine64 wine32 winetricks cabextract \
-        xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify \
+        xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify xinput \
+        libxcomposite1 libxinerama1 libxrandr2 libxrender1 libxcursor1 libxi6 libxtst6 libxfixes3 libvulkan1 \
         python3 python3-pip python3-opencv gdb \
         imagemagick x11-utils procps ffmpeg \
         ca-certificates curl gosu unzip \
@@ -58,6 +59,7 @@ COPY docker/openbox/ /etc/xdg/openbox/
 COPY scripts /scripts
 COPY api /api
 COPY tests /tests
+COPY VERSION /VERSION
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chown -R winebot:winebot /automation /scripts /api /tests \
     && find /automation /scripts /tests -name "*.sh" -exec chmod +x {} + \
