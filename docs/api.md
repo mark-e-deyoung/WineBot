@@ -17,6 +17,7 @@ Endpoints accepting file paths (`/apps/run`) are restricted to specific director
 - `/apps`
 - `/wineprefix`
 - `/tmp`
+- `/artifacts`
 
 ## Unified CLI
 
@@ -53,11 +54,8 @@ Idempotent mode is supported (see `--idempotent` / `--no-idempotent`) so repeat 
 | POST | `/sessions/resume` | Resume a session directory |
 | GET | `/ui` | noVNC + API dashboard UI |
 | GET | `/windows` | List visible windows |
-| GET | `/windows/active` | Active window ID |
-| GET | `/windows/search` | Search windows by name |
 | POST | `/windows/focus` | Focus a window |
 | POST | `/input/mouse/click` | Click at coordinates |
-| GET | `/apps` | List installed apps |
 | POST | `/apps/run` | Run a Windows app |
 | GET | `/screenshot` | Capture screenshot (metadata sidecar + header) |
 | POST | `/recording/start` | Start recording session |
@@ -68,7 +66,6 @@ Idempotent mode is supported (see `--idempotent` / `--no-idempotent`) so repeat 
 | POST | `/run/autoit` | Run AutoIt script |
 | POST | `/run/python` | Run Windows Python |
 | POST | `/inspect/window` | WinSpy‑style inspection |
-| POST | `/run/winedbg` | Launch app under winedbg |
 
 ### Health & State
 
@@ -164,37 +161,15 @@ List currently visible windows.
   }
   ```
 
-#### `GET /windows/active`
-Get the ID of the currently active/focused window.
-- **Response:** `{"id": "0x123456"}`
-
-#### `GET /windows/search`
-Search for windows by name pattern (regex-like).
-- **Parameters:** `name` (required)
-- **Response:** `{"matches": ["0x123", "0x456"]}`
-
-#### `GET /apps`
-List installed applications in the Wine prefix.
-- **Parameters:** `pattern` (optional) - Filter by name.
-- **Response:** `{"apps": ["App.exe", ...]}`
-
 ### Vision
 
 #### `GET /screenshot`
-Capture a screenshot of the desktop or a specific window.
+Capture a screenshot via `/automation/screenshot.sh`.
 - **Parameters:**
-  - `window_id` (optional): Window ID (default: "root").
-  - `delay` (optional): Seconds to wait before capture (default: 0).
-  - `label` (optional): Text to annotate at the bottom of the image.
-  - `tag` (optional): User tag stored in screenshot metadata.
-  - `session_root` (optional): Session root to use when creating a session for screenshots (default: `/artifacts/sessions`).
-  - `output_dir` (optional): Override output directory (advanced; if provided, screenshots are written there instead of the session’s `screenshots/` directory). Allowed: `/apps`, `/wineprefix`, `/tmp`, `/artifacts`.
+  - `output_dir` (optional): Override output directory. If omitted, the session screenshots directory is used.
 - **Response:** PNG image file.
-  - **Headers:** `X-Request-Id` (unique request ID)
   - **Headers:** `X-Screenshot-Path` (saved path inside container)
-  - **Headers:** `X-Screenshot-Metadata-Path` (saved metadata JSON path)
-  - **Sidecar:** A JSON file is written alongside the PNG (`<file>.png.json`) containing metadata.
-  - **Default storage:** If `output_dir` is not provided, screenshots are stored under `<session_dir>/screenshots`. If no session exists, one is created under `session_root`.
+  - **Default storage:** If no session exists, `/tmp` is used.
 
 #### `POST /recording/start`
 Start a recording session.
@@ -327,7 +302,7 @@ Disable network input trace logging (proxy must be running).
 
 #### `GET /input/events`
 Return recent input trace events.
-- **Query params:** `limit` (default 200), `since_epoch_ms` (optional), `source` (`x11` default, `x11_core`, `client`, `windows`, `network`)
+- **Query params:** `limit` (default 200), `since_epoch_ms` (optional), `source` (`client`, `x11_core`, `windows`, `network`, or default X11 trace file)
 - **Response:** `{"events":[...], "log_path":"..."}`
 Each event includes `origin` (`user`/`agent`/`unknown`) and `tool` when known.
 
@@ -341,7 +316,7 @@ Run a Windows application.
     "detach": true
   }
   ```
-- **Response:** `{"status": "launched", ...}`
+- **Response:** `{"status": "finished", "stdout": "..."}` or `{"status":"detached","pid":...}`
 
 ### Automation
 
@@ -350,30 +325,25 @@ Run an AutoHotkey script.
 - **Body:**
   ```json
   {
-    "script": "MsgBox, Hello from API",
-    "focus_title": "Notepad" // Optional: Focus this window before running
+    "script": "MsgBox, Hello from API"
   }
   ```
-- **Response:** `{"status": "success", "stdout": "...", "stderr": "...", "log_path": "...", "log_tail": "..." }`
-- **Artifacts:** Script and logs are stored under the current session (`<session_dir>/scripts` and `<session_dir>/logs`).
+- **Response:** `{"status": "ok", "stdout": "..."}`
 
 #### `POST /run/autoit`
 Run an AutoIt v3 script.
 - **Body:**
   ```json
   {
-    "script": "MsgBox(0, 'Title', 'Hello from API')",
-    "focus_title": "Notepad"
+    "script": "MsgBox(0, 'Title', 'Hello from API')"
   }
   ```
-- **Response:** `{"status": "success", "log": "..."}`
-- **Artifacts:** Script and logs are stored under the current session (`<session_dir>/scripts` and `<session_dir>/logs`).
+- **Response:** `{"status": "ok", "stdout": "..."}`
 
 #### `POST /run/python`
 Run a Python script using the embedded Windows Python environment (`winpy`).
 - **Body:** `{"script": "import sys; print(sys.version)"}`
-- **Response:** `{"status": "success", "stdout": "...", "stderr": "...", "log_path": "..."}`
-- **Artifacts:** Script and logs are stored under the current session (`<session_dir>/scripts` and `<session_dir>/logs`).
+- **Response:** `{"status": "ok", "stdout": "..."}`
 
 #### `POST /inspect/window`
 Inspect a Windows window and its controls (WinSpy-style) via AutoIt.
@@ -394,31 +364,7 @@ Inspect a Windows window and its controls (WinSpy-style) via AutoIt.
     "include_empty": false
   }
   ```
-- **Response:** `{"status": "success", "result": { ... }}`
-- **Artifacts:** Logs are stored under the current session (`<session_dir>/logs`).
-
-#### `POST /run/winedbg`
-Run a Windows app under `winedbg` (gdb proxy or command mode).
-- **Body:**
-  ```json
-  {
-    "path": "/apps/MyApp.exe",
-    "args": "-debug",
-    "detach": true,
-    "mode": "gdb",
-    "port": 2345,
-    "no_start": true
-  }
-  ```
-- **Command mode example:**
-  ```json
-  {
-    "path": "/apps/MyApp.exe",
-    "mode": "default",
-    "command": "info proc"
-  }
-  ```
-- **Response:** `{"status": "launched", "path": "...", "mode": "gdb"}`
+- **Response:** `{"status": "ok", "details": {}}` (current implementation returns a placeholder payload).
 
 ## Usage
 
@@ -438,7 +384,7 @@ curl -H "X-API-Key: mysecret" http://localhost:8000/health
 If you expose port 8000 (see `compose/docker-compose.yml`) and set `API_TOKEN`, you can test from the host:
 
 ```bash
-API_TOKEN=mysecret docker-compose -f compose/docker-compose.yml --profile headless up -d
+API_TOKEN=mysecret docker compose -f compose/docker-compose.yml --profile headless up -d
 API_TOKEN=mysecret ./scripts/winebotctl health
 API_TOKEN=mysecret ./scripts/winebotctl health system
 ```

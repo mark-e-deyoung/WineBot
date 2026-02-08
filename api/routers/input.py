@@ -6,7 +6,10 @@ import time
 import shutil
 import datetime
 import uuid
-import hashlib
+import json
+import signal
+import threading
+from collections import deque
 from api.core.models import ClickModel, InputTraceStartModel, InputTraceStopModel, InputTraceX11CoreStartModel, InputTraceX11CoreStopModel, InputTraceClientStartModel, InputTraceClientStopModel, InputTraceWindowsStartModel, InputTraceWindowsStopModel
 from api.core.broker import broker
 from api.utils.files import (ensure_session_dir, append_input_event, append_trace_event, read_session_dir, session_id_from_dir, resolve_session_dir, 
@@ -19,6 +22,10 @@ from api.utils.files import (ensure_session_dir, append_input_event, append_trac
 from api.utils.process import run_command, manage_process, pid_running, safe_command
 
 router = APIRouter(prefix="/input", tags=["input"])
+input_trace_lock = threading.Lock()
+input_trace_x11_core_lock = threading.Lock()
+input_trace_windows_lock = threading.Lock()
+input_trace_network_lock = threading.Lock()
 
 @router.get("/events")
 def input_events(
@@ -56,11 +63,13 @@ def input_events(
     if not os.path.exists(path):
         return {"events": []}
     
+    lines = deque(maxlen=limit)
     events = []
     try:
         with open(path, "r") as f:
-            lines = f.read().splitlines()
-        for line in lines[-limit:]:
+            for line in f:
+                lines.append(line.rstrip("\n"))
+        for line in lines:
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
@@ -159,16 +168,17 @@ def input_trace_start(data: Optional[InputTraceStartModel] = Body(default=None))
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
-    if input_trace_running(session_dir):
-        return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_pid(session_dir)}
+    with input_trace_lock:
+        if input_trace_running(session_dir):
+            return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_pid(session_dir)}
 
-    cmd = ["python3", "-m", "automation.input_trace", "start", "--session-dir", session_dir]
-    if data.include_raw:
-        cmd.append("--include-raw")
-    if data.motion_sample_ms and data.motion_sample_ms > 0:
-        cmd.extend(["--motion-sample-ms", str(data.motion_sample_ms)])
-    proc = subprocess.Popen(cmd)
-    manage_process(proc)
+        cmd = ["python3", "-m", "automation.input_trace", "start", "--session-dir", session_dir]
+        if data.include_raw:
+            cmd.append("--include-raw")
+        if data.motion_sample_ms and data.motion_sample_ms > 0:
+            cmd.extend(["--motion-sample-ms", str(data.motion_sample_ms)])
+        proc = subprocess.Popen(cmd)
+        manage_process(proc)
 
     append_lifecycle_event(session_dir, "input_trace_started", "Input trace started", source="api")
     return {
@@ -191,12 +201,13 @@ def input_trace_stop(data: Optional[InputTraceStopModel] = Body(default=None)):
         session_dir = read_session_dir()
     if not session_dir:
         return {"status": "already_stopped"}
-    if not input_trace_running(session_dir):
-        return {"status": "already_stopped", "session_dir": session_dir}
+    with input_trace_lock:
+        if not input_trace_running(session_dir):
+            return {"status": "already_stopped", "session_dir": session_dir}
 
-    result = safe_command(["python3", "-m", "automation.input_trace", "stop", "--session-dir", session_dir])
-    if not result.get("ok"):
-        raise HTTPException(status_code=500, detail=(result.get("stderr") or "Failed to stop input trace"))
+        result = safe_command(["python3", "-m", "automation.input_trace", "stop", "--session-dir", session_dir])
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=(result.get("stderr") or "Failed to stop input trace"))
     append_lifecycle_event(session_dir, "input_trace_stopped", "Input trace stopped", source="api")
     return {"status": "stopped", "session_dir": session_dir}
 
@@ -231,19 +242,20 @@ def input_trace_x11_core_start(data: Optional[InputTraceX11CoreStartModel] = Bod
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
-    if input_trace_x11_core_running(session_dir):
-        return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_x11_core_pid(session_dir)}
+    with input_trace_x11_core_lock:
+        if input_trace_x11_core_running(session_dir):
+            return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_x11_core_pid(session_dir)}
 
-    cmd = ["python3", "-m", "automation.input_trace_core", "start", "--session-dir", session_dir]
-    if data.motion_sample_ms and data.motion_sample_ms > 0:
-        cmd.extend(["--motion-sample-ms", str(data.motion_sample_ms)])
-    proc = subprocess.Popen(cmd)
-    manage_process(proc)
-    try:
-        with open(input_trace_x11_core_pid_path(session_dir), "w") as f:
-            f.write(str(proc.pid))
-    except Exception:
-        pass
+        cmd = ["python3", "-m", "automation.input_trace_core", "start", "--session-dir", session_dir]
+        if data.motion_sample_ms and data.motion_sample_ms > 0:
+            cmd.extend(["--motion-sample-ms", str(data.motion_sample_ms)])
+        proc = subprocess.Popen(cmd)
+        manage_process(proc)
+        try:
+            with open(input_trace_x11_core_pid_path(session_dir), "w") as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
     write_input_trace_x11_core_state(session_dir, "running")
     append_lifecycle_event(session_dir, "input_trace_x11_core_started", "X11 core input trace started", source="api")
     return {
@@ -266,12 +278,13 @@ def input_trace_x11_core_stop(data: Optional[InputTraceX11CoreStopModel] = Body(
         session_dir = read_session_dir()
     if not session_dir:
         return {"status": "already_stopped"}
-    if not input_trace_x11_core_running(session_dir):
-        return {"status": "already_stopped", "session_dir": session_dir}
+    with input_trace_x11_core_lock:
+        if not input_trace_x11_core_running(session_dir):
+            return {"status": "already_stopped", "session_dir": session_dir}
 
-    result = safe_command(["python3", "-m", "automation.input_trace_core", "stop", "--session-dir", session_dir])
-    if not result.get("ok"):
-        raise HTTPException(status_code=500, detail=(result.get("stderr") or "Failed to stop x11 core trace"))
+        result = safe_command(["python3", "-m", "automation.input_trace_core", "stop", "--session-dir", session_dir])
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=(result.get("stderr") or "Failed to stop x11 core trace"))
     write_input_trace_x11_core_state(session_dir, "stopped")
     append_lifecycle_event(session_dir, "input_trace_x11_core_stopped", "X11 core input trace stopped", source="api")
     return {"status": "stopped", "session_dir": session_dir}
@@ -380,88 +393,90 @@ def input_trace_windows_start(data: Optional[InputTraceWindowsStartModel] = Body
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
-    if input_trace_windows_running(session_dir):
-        return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_windows_pid(session_dir)}
+    with input_trace_windows_lock:
+        if input_trace_windows_running(session_dir):
+            return {"status": "already_running", "session_dir": session_dir, "pid": input_trace_windows_pid(session_dir)}
 
-    backend = (data.backend or os.getenv("WINEBOT_INPUT_TRACE_WINDOWS_BACKEND", "auto")).lower()
-    if backend not in ("auto", "ahk", "hook"):
-        raise HTTPException(status_code=400, detail="backend must be one of: auto, ahk, hook")
+        backend = (data.backend or os.getenv("WINEBOT_INPUT_TRACE_WINDOWS_BACKEND", "auto")).lower()
+        if backend not in ("auto", "ahk", "hook"):
+            raise HTTPException(status_code=400, detail="backend must be one of: auto, ahk, hook")
 
-    hook_script = "/scripts/diagnose-wine-hook.py"
-    ahk_script = "/automation/input_trace_windows.ahk"
-    log_path = input_trace_windows_log_path(session_dir)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    motion_ms = data.motion_sample_ms if data.motion_sample_ms is not None else 10
-    session_id = session_id_from_dir(session_dir) or ""
-    debug_keys = []
-    if data.debug_keys:
-        debug_keys = [k for k in data.debug_keys if k]
-    elif data.debug_keys_csv:
-        debug_keys = [k.strip() for k in data.debug_keys_csv.split(",") if k.strip()]
+        hook_script = "/scripts/diagnose-wine-hook.py"
+        ahk_script = "/automation/input_trace_windows.ahk"
+        log_path = input_trace_windows_log_path(session_dir)
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        motion_ms = data.motion_sample_ms if data.motion_sample_ms is not None else 10
+        session_id = session_id_from_dir(session_dir) or ""
+        debug_keys = []
+        if data.debug_keys:
+            debug_keys = [k for k in data.debug_keys if k]
+        elif data.debug_keys_csv:
+            debug_keys = [k.strip() for k in data.debug_keys_csv.split(",") if k.strip()]
 
-    warnings = []
+        warnings = []
 
-    def start_ahk() -> subprocess.Popen:
-        cmd = ["ahk", ahk_script, to_wine_path(log_path), str(motion_ms), session_id]
-        if debug_keys:
-            cmd.append(",".join(debug_keys))
-            if data.debug_sample_ms is not None:
-                cmd.append(str(data.debug_sample_ms))
-        return subprocess.Popen(cmd)
-
-    def start_hook() -> Optional[subprocess.Popen]:
-        if not shutil.which("winpy"):
-            return None
-        if not os.path.exists(hook_script):
-            return None
-        cmd = [
-            "winpy",
-            hook_script,
-            "--out",
-            log_path,
-            "--duration",
-            "0",
-            "--source",
-            "windows",
-            "--layer",
-            "windows",
-            "--origin",
-            "unknown",
-            "--tool",
-            "win_hook",
-        ]
-        if session_id:
-            cmd.extend(["--session-id", session_id])
-        proc = subprocess.Popen(cmd)
-        time.sleep(0.2)
-        if proc.poll() is not None:
-            return None
-        return proc
-
-    proc = None
-    backend_used = None
-
-    if backend in ("auto", "hook"):
-        proc = start_hook()
-        if proc:
-            backend_used = "hook"
+        def start_ahk() -> subprocess.Popen:
+            cmd = ["ahk", ahk_script, to_wine_path(log_path), str(motion_ms), session_id]
             if debug_keys:
-                warnings.append("windows trace hook backend ignores debug_keys")
-    if proc is None:
-        if backend == "hook":
-            raise HTTPException(status_code=500, detail="windows hook backend failed to start")
-        proc = start_ahk()
-        backend_used = "ahk"
+                cmd.append(",".join(debug_keys))
+                if data.debug_sample_ms is not None:
+                    cmd.append(str(data.debug_sample_ms))
+            return subprocess.Popen(cmd)
 
-    manage_process(proc)
-    try:
-        with open(input_trace_windows_pid_path(session_dir), "w") as f:
-            f.write(str(proc.pid))
-    except Exception:
-        pass
-    write_input_trace_windows_state(session_dir, "running")
-    if backend_used:
-        write_input_trace_windows_backend(session_dir, backend_used)
+        def start_hook() -> Optional[subprocess.Popen]:
+            if not shutil.which("winpy"):
+                return None
+            if not os.path.exists(hook_script):
+                return None
+            cmd = [
+                "winpy",
+                hook_script,
+                "--out",
+                log_path,
+                "--duration",
+                "0",
+                "--source",
+                "windows",
+                "--layer",
+                "windows",
+                "--origin",
+                "unknown",
+                "--tool",
+                "win_hook",
+            ]
+            if session_id:
+                cmd.extend(["--session-id", session_id])
+            proc = subprocess.Popen(cmd)
+            time.sleep(0.2)
+            if proc.poll() is not None:
+                return None
+            return proc
+
+        proc = None
+        backend_used = None
+
+        if backend in ("auto", "hook"):
+            proc = start_hook()
+            if proc:
+                backend_used = "hook"
+                if debug_keys:
+                    warnings.append("windows trace hook backend ignores debug_keys")
+        if proc is None:
+            if backend == "hook":
+                raise HTTPException(status_code=500, detail="windows hook backend failed to start")
+            proc = start_ahk()
+            backend_used = "ahk"
+
+        manage_process(proc)
+        try:
+            with open(input_trace_windows_pid_path(session_dir), "w") as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        write_input_trace_windows_state(session_dir, "running")
+        if backend_used:
+            write_input_trace_windows_backend(session_dir, backend_used)
+
     append_lifecycle_event(session_dir, "input_trace_windows_started", f"Windows input trace started ({backend_used})", source="api")
     payload = {"status": "started", "session_dir": session_dir, "pid": proc.pid, "log_path": log_path, "backend": backend_used}
     if warnings:
@@ -481,14 +496,15 @@ def input_trace_windows_stop(data: Optional[InputTraceWindowsStopModel] = Body(d
         session_dir = read_session_dir()
     if not session_dir:
         return {"status": "already_stopped"}
-    pid = input_trace_windows_pid(session_dir)
-    if not pid or not pid_running(pid):
-        write_input_trace_windows_state(session_dir, "stopped")
-        return {"status": "already_stopped", "session_dir": session_dir}
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to stop windows input trace")
+    with input_trace_windows_lock:
+        pid = input_trace_windows_pid(session_dir)
+        if not pid or not pid_running(pid):
+            write_input_trace_windows_state(session_dir, "stopped")
+            return {"status": "already_stopped", "session_dir": session_dir}
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to stop windows input trace")
     write_input_trace_windows_state(session_dir, "stopped")
     append_lifecycle_event(session_dir, "input_trace_windows_stopped", "Windows input trace stopped", source="api")
     return {"status": "stopped", "session_dir": session_dir}
@@ -524,9 +540,10 @@ def input_trace_network_start(data: Optional[InputTraceClientStartModel] = Body(
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
-    if not input_trace_network_running(session_dir):
-        return {"status": "not_running", "session_dir": session_dir, "hint": "Enable WINEBOT_INPUT_TRACE_NETWORK=1 and restart the container."}
-    write_input_trace_network_state(session_dir, "enabled")
+    with input_trace_network_lock:
+        if not input_trace_network_running(session_dir):
+            return {"status": "not_running", "session_dir": session_dir, "hint": "Enable WINEBOT_INPUT_TRACE_NETWORK=1 and restart the container."}
+        write_input_trace_network_state(session_dir, "enabled")
     append_lifecycle_event(session_dir, "input_trace_network_enabled", "Network input trace enabled", source="api")
     return {"status": "enabled", "session_dir": session_dir, "log_path": input_trace_network_log_path(session_dir)}
 
@@ -543,8 +560,9 @@ def input_trace_network_stop(data: Optional[InputTraceClientStopModel] = Body(de
         session_dir = read_session_dir()
     if not session_dir:
         return {"status": "disabled"}
-    if not input_trace_network_running(session_dir):
-        return {"status": "not_running", "session_dir": session_dir}
-    write_input_trace_network_state(session_dir, "disabled")
+    with input_trace_network_lock:
+        if not input_trace_network_running(session_dir):
+            return {"status": "not_running", "session_dir": session_dir}
+        write_input_trace_network_state(session_dir, "disabled")
     append_lifecycle_event(session_dir, "input_trace_network_disabled", "Network input trace disabled", source="api")
     return {"status": "disabled", "session_dir": session_dir}

@@ -16,7 +16,6 @@ Checks performed (headless):
 - API integration checks for `/health` and `/health/*`
 - API integration checks for `/inspect/window` (list-only)
 - Screenshot metadata validation (PNG tEXt + JSON sidecar)
-- API integration check for `/run/winedbg` (default command)
 
 ## Full smoke test
 

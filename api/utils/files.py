@@ -4,6 +4,7 @@ import json
 import time
 import datetime
 import platform
+from pathlib import Path
 from typing import Dict, Any, Optional
 from api.utils.process import pid_running
 
@@ -13,9 +14,18 @@ ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts"]
 
 def validate_path(path: str):
     """Ensure path is within allowed directories to prevent traversal."""
-    resolved = os.path.abspath(path)
-    if not any(resolved.startswith(p) for p in ALLOWED_PREFIXES):
-         raise Exception(f"Path not allowed. Must start with: {ALLOWED_PREFIXES}")
+    resolved = str(Path(path).resolve())
+    allowed = [str(Path(prefix).resolve()) for prefix in ALLOWED_PREFIXES]
+    in_allowed = False
+    for prefix in allowed:
+        try:
+            if os.path.commonpath([resolved, prefix]) == prefix:
+                in_allowed = True
+                break
+        except ValueError:
+            continue
+    if not in_allowed:
+        raise Exception(f"Path not allowed. Must be under one of: {ALLOWED_PREFIXES}")
     return resolved
 
 def statvfs_info(path: str) -> Dict[str, Any]:

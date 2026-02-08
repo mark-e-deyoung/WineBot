@@ -8,6 +8,7 @@ import logging
 import fcntl
 import datetime
 import subprocess
+from collections import deque
 from typing import Optional
 
 from .models import SessionManifest, Event
@@ -155,7 +156,12 @@ def load_input_trace_events(session_dir: str) -> list:
         return []
 
     session_id = os.path.basename(session_dir)
-    events = []
+    max_events = int(os.getenv("WINEBOT_RECORD_INPUT_MAX_EVENTS", "50000"))
+    if max_events > 0:
+        event_buffer = deque(maxlen=max_events)
+    else:
+        event_buffer = []
+
     for layer, path in input_log_paths(session_dir):
         if not os.path.exists(path):
             continue
@@ -182,7 +188,7 @@ def load_input_trace_events(session_dir: str) -> list:
                     if data.get("x") is not None and data.get("y") is not None:
                         pos = {"x": data.get("x"), "y": data.get("y")}
                     msg = input_event_message(data)
-                    events.append(Event(
+                    event_buffer.append(Event(
                         session_id=session_id,
                         t_rel_ms=t_rel,
                         t_epoch_ms=t_epoch,
@@ -196,7 +202,7 @@ def load_input_trace_events(session_dir: str) -> list:
                     ))
         except Exception:
             continue
-    return events
+    return list(event_buffer)
 
 def read_pid(path: str) -> Optional[int]:
     try:

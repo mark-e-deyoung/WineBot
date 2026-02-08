@@ -12,10 +12,10 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
         X11VNC_PORT=$((VNC_PORT + 1))
         # Proxy start logic...
         NET_SAMPLE_MS="${WINEBOT_INPUT_TRACE_NETWORK_SAMPLE_MS:-10}"
-        python3 -m automation.vnc_input_proxy 
-            --listen-port "$VNC_PORT" 
-            --target-port "$X11VNC_PORT" 
-            --session-dir "$SESSION_DIR" 
+        python3 -m automation.vnc_input_proxy \
+            --listen-port "$VNC_PORT" \
+            --target-port "$X11VNC_PORT" \
+            --session-dir "$SESSION_DIR" \
             --sample-motion-ms "$NET_SAMPLE_MS" >/dev/null 2>&1 &
         echo "$!" > "${SESSION_DIR}/input_trace_network.pid"
     fi

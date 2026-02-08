@@ -1,14 +1,16 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Body
+from fastapi import APIRouter, HTTPException, Body
 from typing import Dict, Any, Optional
+import asyncio
+import json
 import os
 import signal
 import threading
 import time
 import subprocess
-from api.utils.files import (read_session_dir, session_id_from_dir, lifecycle_log_path, append_lifecycle_event, 
+from api.utils.files import (read_session_dir, lifecycle_log_path, append_lifecycle_event, 
                              resolve_session_dir, ensure_session_subdirs, ensure_user_profile, write_session_dir,
                              write_session_manifest, link_wine_user_dir, write_session_state, recorder_running,
-                             read_session_state)
+                             read_session_state, validate_path)
 from api.utils.process import safe_command, find_processes
 from api.core.recorder import stop_recording
 from api.core.broker import broker
@@ -140,7 +142,6 @@ def lifecycle_events(limit: int = 100):
 
 @router.post("/lifecycle/shutdown")
 async def lifecycle_shutdown(
-    background_tasks: BackgroundTasks,
     delay: float = 0.5,
     wine_shutdown: bool = True,
     power_off: bool = False,
@@ -181,9 +182,6 @@ async def lifecycle_shutdown(
 @router.post("/lifecycle/reset_workspace")
 async def reset_workspace():
     """Force Wine desktop to be maximized and undecorated."""
-    screen = os.environ.get("SCREEN", "1280x720x24").split("x")
-    w, h = screen[0], screen[1]
-    
     # Start explorer if missing
     if not find_processes("explorer"):
         subprocess.Popen(["wine", "explorer.exe"], 
@@ -194,7 +192,7 @@ async def reset_workspace():
     # Force geometry update (mostly for windowed mode now)
     subprocess.run(["xdotool", "search", "--class", "explorer", "windowmove", "0", "0"], capture_output=True)
     
-    return {"status": "ok", "message": f"Workspace reset requested"}
+    return {"status": "ok", "message": "Workspace reset requested"}
 
 @router.get("/sessions")
 def list_sessions(root: Optional[str] = None, limit: int = 100):
@@ -202,7 +200,10 @@ def list_sessions(root: Optional[str] = None, limit: int = 100):
     if limit < 1:
         raise HTTPException(status_code=400, detail="limit must be >= 1")
     root_dir = root or os.getenv("WINEBOT_SESSION_ROOT", "/artifacts/sessions")
-    # safe_root validation logic moved to files.py if needed, or inline here
+    try:
+        root_dir = validate_path(root_dir)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not os.path.exists(root_dir):
          return {"root": root_dir, "sessions": []}
     

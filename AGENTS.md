@@ -43,10 +43,10 @@ WineBot is a containerized Windows application runtime (Wine 10.0) with an X11 d
 ### How to run tests?
 ```bash
 # Unit tests
-docker compose run --rm winebot pytest /tests
+docker compose -f compose/docker-compose.yml run --rm winebot bash -lc 'PYTHONPATH=/ pytest /tests'
 
 # Full diagnostic suite (Smoke + CV + Trace)
-docker compose run --rm winebot /scripts/diagnose-master.sh
+docker compose -f compose/docker-compose.yml run --rm winebot /scripts/diagnose-master.sh
 ```
 
 ### How to apply config changes?
