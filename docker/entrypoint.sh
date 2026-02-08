@@ -4,7 +4,7 @@ set -e
 # Defaults
 export WINEPREFIX="${WINEPREFIX:-/wineprefix}"
 export DISPLAY="${DISPLAY:-:99}"
-export SCREEN="${SCREEN:-1920x1080x24}"
+export SCREEN="${SCREEN:-1280x720x24}"
 
 # --- ROOT CONTEXT: User & Permission Setup ---
 if [ "$(id -u)" = "0" ]; then

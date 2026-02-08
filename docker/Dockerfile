@@ -48,7 +48,7 @@ RUN useradd -m -u 1000 -s /bin/bash winebot \
 
 ENV WINEPREFIX=/wineprefix \
     DISPLAY=:99 \
-    SCREEN=1920x1080x24 \
+    SCREEN=1280x720x24 \
     MODE=headless \
     INIT_PREFIX=1 \
     ENABLE_VNC=0 \
