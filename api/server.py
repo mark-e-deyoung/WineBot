@@ -48,6 +48,125 @@ class RecorderState(str, Enum):
     STOPPING = "stopping"
 
 
+class ControlMode(str, Enum):
+    USER = "USER"
+    AGENT = "AGENT"
+
+
+class UserIntent(str, Enum):
+    WAIT = "WAIT"
+    SAFE_INTERRUPT = "SAFE_INTERRUPT"
+    STOP_NOW = "STOP_NOW"
+
+
+class AgentStatus(str, Enum):
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
+
+
+class ControlState(BaseModel):
+    session_id: str
+    interactive: bool
+    control_mode: ControlMode
+    lease_expiry: Optional[float] = None
+    user_intent: UserIntent
+    agent_status: AgentStatus
+
+
+class GrantControlModel(BaseModel):
+    lease_seconds: int
+
+
+class UserIntentModel(BaseModel):
+    intent: UserIntent
+
+
+class InputBroker:
+    def __init__(self):
+        self._lock = asyncio.Lock()
+        self.state = ControlState(
+            session_id="unknown",
+            interactive=False,
+            control_mode=ControlMode.USER,
+            user_intent=UserIntent.WAIT,
+            agent_status=AgentStatus.IDLE
+        )
+        self.last_user_activity = 0.0
+
+    async def update_session(self, session_id: str, interactive: bool):
+        async with self._lock:
+            self.state.session_id = session_id
+            self.state.interactive = interactive
+            # If not interactive, default to AGENT allowed, else USER
+            if not interactive:
+                self.state.control_mode = ControlMode.AGENT
+            else:
+                # If switching to interactive, revoke agent
+                if self.state.control_mode == ControlMode.AGENT:
+                    self.revoke_agent("session_became_interactive")
+                self.state.control_mode = ControlMode.USER
+
+    async def grant_agent(self, lease_seconds: int):
+        async with self._lock:
+            if not self.state.interactive:
+                return  # Always implicit in non-interactive
+            self.state.control_mode = ControlMode.AGENT
+            self.state.lease_expiry = time.time() + lease_seconds
+            self.state.user_intent = UserIntent.WAIT
+
+    async def renew_agent(self, lease_seconds: int):
+        async with self._lock:
+            if self.state.control_mode != ControlMode.AGENT:
+                raise HTTPException(status_code=403, detail="Agent does not hold control")
+            if self.state.user_intent == UserIntent.STOP_NOW:
+                raise HTTPException(status_code=403, detail="User requested STOP_NOW")
+            self.state.lease_expiry = time.time() + lease_seconds
+
+    def revoke_agent(self, reason: str):
+        # Sync version for internal calls
+        self.state.control_mode = ControlMode.USER
+        self.state.lease_expiry = None
+        self.state.agent_status = AgentStatus.STOPPING
+        print(f"Broker: Agent revoked ({reason})")
+
+    async def report_user_activity(self):
+        self.last_user_activity = time.time()
+        if self.state.control_mode == ControlMode.AGENT:
+            async with self._lock:
+                self.revoke_agent("user_input_override")
+
+    async def set_user_intent(self, intent: UserIntent):
+        async with self._lock:
+            self.state.user_intent = intent
+            if intent == UserIntent.STOP_NOW:
+                self.revoke_agent("user_stop_now")
+
+    async def check_access(self) -> bool:
+        """Returns True if agent is allowed to execute."""
+        if not self.state.interactive:
+            return True
+        
+        async with self._lock:
+            if self.state.control_mode != ControlMode.AGENT:
+                return False
+            if self.state.lease_expiry and time.time() > self.state.lease_expiry:
+                self.revoke_agent("lease_expired")
+                return False
+            if self.state.user_intent == UserIntent.STOP_NOW:
+                self.revoke_agent("user_stop_now")
+                return False
+            return True
+
+    def get_state(self) -> ControlState:
+        return self.state
+
+
+broker = InputBroker()
+
+
 # --- Concurrency & Resource Management ---
 recorder_lock = asyncio.Lock()
 # Store strong references to Popen objects to prevent them from being GC'd
@@ -1275,7 +1394,7 @@ def suspend_session(data: Optional[SessionSuspendModel] = Body(default=None)):
     return {"status": "suspended", "session_dir": session_dir, "session_id": os.path.basename(session_dir)}
 
 @app.post("/sessions/resume")
-def resume_session(data: Optional[SessionResumeModel] = Body(default=None)):
+async def resume_session(data: Optional[SessionResumeModel] = Body(default=None)):
     """Resume an existing session directory."""
     if data is None:
         data = SessionResumeModel()
@@ -1319,12 +1438,42 @@ def resume_session(data: Optional[SessionResumeModel] = Body(default=None)):
     status = "resumed"
     if current_session == target_dir:
         status = "already_active"
+    
+    # Update broker
+    interactive = os.getenv("MODE", "headless") == "interactive"
+    await broker.update_session(os.path.basename(target_dir), interactive)
+
     return {
         "status": status,
         "session_dir": target_dir,
         "session_id": os.path.basename(target_dir),
         "previous_session": current_session,
     }
+
+@app.get("/sessions/{session_id}/control")
+def get_control_state(session_id: str):
+    """Get the current interactive control state."""
+    state = broker.get_state()
+    # Simple validation that session matches if strict
+    return state
+
+@app.post("/sessions/{session_id}/control/grant")
+async def grant_control(session_id: str, data: GrantControlModel):
+    """User grants control to the agent for N seconds."""
+    await broker.grant_agent(data.lease_seconds)
+    return broker.get_state()
+
+@app.post("/sessions/{session_id}/control/renew")
+async def renew_control(session_id: str, data: GrantControlModel):
+    """Agent requests lease renewal."""
+    await broker.renew_agent(data.lease_seconds)
+    return broker.get_state()
+
+@app.post("/sessions/{session_id}/user_intent")
+async def set_user_intent(session_id: str, data: UserIntentModel):
+    """User sets intent (WAIT, SAFE_INTERRUPT, STOP_NOW)."""
+    await broker.set_user_intent(data.intent)
+    return broker.get_state()
 
 def _shutdown_process(session_dir: Optional[str], delay: float, sig: int = signal.SIGTERM) -> None:
     time.sleep(delay)
@@ -1599,8 +1748,11 @@ def run_winedbg(data: WinedbgRunModel):
     return {"status": "launched", "path": safe_path, "mode": mode}
 
 @app.post("/run/python")
-def run_python(data: PythonScriptModel):
+async def run_python(data: PythonScriptModel):
     """Run a script using Windows Python (winpy)."""
+    if not await broker.check_access():
+        raise HTTPException(status_code=423, detail="Agent control denied by policy")
+
     session_dir = ensure_session_dir()
     script_dir = os.path.join(session_dir, "scripts") if session_dir else "/tmp"
     log_dir = os.path.join(session_dir, "logs") if session_dir else "/tmp"
@@ -2056,8 +2208,11 @@ def input_trace_client_stop(data: Optional[InputTraceClientStopModel] = Body(def
     return {"status": "disabled", "session_dir": session_dir}
 
 @app.post("/input/client/event")
-def input_client_event(event: Optional[Dict[str, Any]] = Body(default=None)):
+async def input_client_event(event: Optional[Dict[str, Any]] = Body(default=None)):
     """Record a client-side input event (noVNC UI)."""
+    # Signal user activity to broker (auto-revokes agent)
+    await broker.report_user_activity()
+
     session_dir = read_session_dir()
     if not session_dir:
         return {"status": "ignored", "reason": "no_session"}
@@ -2366,8 +2521,11 @@ def get_session_artifact(session_id: str, file_path: str, session_root: Optional
     return FileResponse(safe_path, media_type=media_type)
 
 @app.post("/input/mouse/click")
-def click_at(data: ClickModel):
+async def click_at(data: ClickModel):
     """Click at coordinates (x, y)."""
+    if not await broker.check_access():
+        raise HTTPException(status_code=423, detail="Agent control denied by policy")
+
     session_dir = ensure_session_dir()
     trace_id = uuid.uuid4().hex
     append_input_event(session_dir, {
@@ -2398,8 +2556,11 @@ def click_at(data: ClickModel):
     return {"status": "clicked", "x": data.x, "y": data.y, "trace_id": trace_id}
 
 @app.post("/run/ahk")
-def run_ahk(data: AHKModel):
+async def run_ahk(data: AHKModel):
     """Run an AutoHotkey script."""
+    if not await broker.check_access():
+        raise HTTPException(status_code=423, detail="Agent control denied by policy")
+
     # Write script to temp file
     session_dir = ensure_session_dir()
     script_dir = os.path.join(session_dir, "scripts") if session_dir else "/tmp"
@@ -2509,8 +2670,11 @@ def run_ahk(data: AHKModel):
         }
 
 @app.post("/run/autoit")
-def run_autoit(data: AutoItModel):
+async def run_autoit(data: AutoItModel):
     """Run an AutoIt script."""
+    if not await broker.check_access():
+        raise HTTPException(status_code=423, detail="Agent control denied by policy")
+
     # Write script to temp file
     session_dir = ensure_session_dir()
     script_dir = os.path.join(session_dir, "scripts") if session_dir else "/tmp"
