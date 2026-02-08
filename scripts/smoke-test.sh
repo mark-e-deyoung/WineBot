@@ -148,7 +148,7 @@ cleanup_services() {
   fi
 }
 
-if [ "$cleanup" = "1" ] || [ "$include_debug_proxy" = "1" ]; then
+if [ "$cleanup" = "1" ]; then
   trap cleanup_services EXIT
 fi
 
