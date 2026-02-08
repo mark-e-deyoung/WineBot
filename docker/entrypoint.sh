@@ -260,7 +260,14 @@ if [ -f "/etc/xdg/openbox/menu.xml" ] && [ ! -f "${OPENBOX_CONFIG_DIR}/menu.xml"
 fi
 
 # Start Window Manager (Openbox)
-openbox >/dev/null 2>&1 &
+openbox --replace >/dev/null 2>&1 &
+
+# Start Linux Panel (System Tray + Taskbar)
+mkdir -p ~/.config/tint2
+if [ -f "/etc/xdg/tint2/tint2rc" ]; then
+    cp "/etc/xdg/tint2/tint2rc" ~/.config/tint2/tint2rc
+fi
+tint2 >/dev/null 2>&1 &
 
 if [ "$RESUMED" = "1" ]; then
     log_event "session_resumed" "Session resumed"
@@ -467,6 +474,9 @@ wine reg add "HKEY_CURRENT_USER\\Control Panel\\Desktop" /v FontSmoothingType /t
 # Disable Wine Desktop (force windowed mode) to fix input blocking
 wine reg delete "HKEY_CURRENT_USER\\Software\\Wine\\Explorer" /v Desktop /f >/dev/null 2>&1 || true
 wine reg delete "HKEY_CURRENT_USER\\Software\\Wine\\Explorer\\Desktops" /f >/dev/null 2>&1 || true
+
+# Disable XInput2 to ensure VNC clicks are received by Wine
+wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f >/dev/null 2>&1
 
 # Apply WineBot Theme (Fonts, Colors, Metrics)
 if [ -x "/scripts/install-theme.sh" ]; then

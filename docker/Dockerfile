@@ -14,6 +14,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         wine wine64 wine32 winetricks cabextract \
         xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify xinput \
         libxcomposite1 libxinerama1 libxrandr2 libxrender1 libxcursor1 libxi6 libxtst6 libxfixes3 libvulkan1 \
+        fonts-liberation x11-xserver-utils tint2 \
         python3 python3-pip python3-opencv gdb \
         imagemagick x11-utils procps ffmpeg \
         ca-certificates curl gosu unzip \
@@ -56,6 +57,7 @@ ENV WINEPREFIX=/wineprefix \
 
 COPY automation /automation
 COPY docker/openbox/ /etc/xdg/openbox/
+COPY docker/tint2/tint2rc /etc/xdg/tint2/tint2rc
 COPY scripts /scripts
 COPY api /api
 COPY tests /tests
