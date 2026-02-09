@@ -3,9 +3,13 @@
 ## Participation Policy
 This repository is public for visibility and reference, but participation is invite-only.
 
-Only approved participants who are explicitly added as repository collaborators may open issues or pull requests.
+Only approved participants may open issues or pull requests:
+- repository collaborators, and
+- approved automation identities maintained in `.github/approved-actors.yml`.
 
-Issues and pull requests opened by non-collaborators are automatically labeled `unapproved`, receive an explanatory comment, and are closed.
+Fork-based pull requests from non-collaborators are not accepted, even for approved automation identities.
+
+Issues and pull requests opened by unapproved actors are automatically labeled `unapproved`, receive an explanatory comment, and are closed.
 
 ## Guidance for Collaborators
 
@@ -23,4 +27,3 @@ Issues and pull requests opened by non-collaborators are automatically labeled `
 
 ## Security
 Do not disclose vulnerabilities publicly in issues or pull requests. Report security concerns through private channels.
-

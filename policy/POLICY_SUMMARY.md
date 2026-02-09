@@ -4,11 +4,16 @@ This file summarizes the main policies currently used by WineBot and where each 
 
 ## Enforced Policies
 
-### 1. Invite-Only Participation (Public Repo, Collaborator-Only Contributions)
-- Non-collaborator issues and PRs are automatically:
+### 1. Invite-Only Participation (Public Repo, Collaborator + Approved Automation Only)
+- Issues and PRs from unapproved actors are automatically:
   1. labeled `unapproved`,
   2. commented with an invite-only notice,
   3. closed.
+- Approved actors:
+  - repository collaborators
+  - identities listed in `.github/approved-actors.yml`
+- Additional fork protection:
+  - PRs from forks are rejected unless the author is a repository collaborator.
 - Enforcement:
   - `.github/workflows/approved-issues-only.yml`
   - `.github/workflows/approved-prs-only.yml`

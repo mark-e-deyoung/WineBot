@@ -7,16 +7,18 @@ on:
 permissions:
   pull-requests: write
   issues: write
+  contents: read
 
 env:
   UNAPPROVED_LABEL: unapproved
-  UNAPPROVED_PR_COMMENT: "Thanks for the PR. This project is invite-only and only accepts PRs from approved collaborators."
+  UNAPPROVED_PR_COMMENT: "This repository is invite-only. Pull requests from unapproved actors or forks are automatically closed."
+  APPROVED_ACTORS_FILE: .github/approved-actors.yml
 
 jobs:
   enforce-approved-prs:
     runs-on: ubuntu-latest
     steps:
-      - name: Enforce collaborator-only PR participation
+      - name: Enforce invite-only PR participation
         uses: actions/github-script@v7
         with:
           script: |
@@ -24,25 +26,63 @@ jobs:
             const repo = context.repo.repo;
             const pull_number = context.payload.pull_request.number;
             const opener = context.payload.pull_request.user.login;
+            const fromFork = context.payload.pull_request.head.repo.full_name !== `${owner}/${repo}`;
             const label = process.env.UNAPPROVED_LABEL;
             const comment = process.env.UNAPPROVED_PR_COMMENT;
+            const whitelistPath = process.env.APPROVED_ACTORS_FILE;
 
-            let approved = false;
+            async function loadWhitelist() {
+              try {
+                const { data } = await github.request(
+                  "GET /repos/{owner}/{repo}/contents/{path}",
+                  { owner, repo, path: whitelistPath }
+                );
+                if (!data?.content) return new Set();
+                const text = Buffer.from(data.content, "base64").toString("utf8");
+                const users = [];
+                let inUsers = false;
+                for (const raw of text.split(/\r?\n/)) {
+                  const line = raw.trim();
+                  if (!line || line.startsWith("#")) continue;
+                  if (line === "users:" || line.startsWith("users:")) {
+                    inUsers = true;
+                    continue;
+                  }
+                  if (inUsers && line.startsWith("- ")) {
+                    users.push(line.slice(2).trim());
+                    continue;
+                  }
+                  if (inUsers && !line.startsWith("- ")) {
+                    break;
+                  }
+                }
+                return new Set(users);
+              } catch (error) {
+                core.warning(`Unable to read ${whitelistPath}: ${error.message}`);
+                return new Set();
+              }
+            }
+
+            const whitelist = await loadWhitelist();
+            const whitelisted = whitelist.has(opener);
+            let collaborator = false;
             try {
               const resp = await github.request(
                 "GET /repos/{owner}/{repo}/collaborators/{username}",
                 { owner, repo, username: opener }
               );
-              approved = resp.status === 204;
+              collaborator = resp.status === 204;
             } catch (error) {
               if (error.status !== 404) {
                 core.warning(`Collaborator check returned ${error.status}: ${error.message}`);
               }
-              approved = false;
+              collaborator = false;
             }
 
+            // Fork PRs are only approved for collaborators.
+            const approved = collaborator || (whitelisted && !fromFork);
             if (approved) {
-              core.info(`${opener} is an approved collaborator; no action needed.`);
+              core.info(`${opener} is approved (collaborator=${collaborator}, whitelisted=${whitelisted}, fromFork=${fromFork}); no action needed.`);
               return;
             }
 
@@ -92,4 +132,3 @@ jobs:
               pull_number,
               state: "closed",
             });
-
