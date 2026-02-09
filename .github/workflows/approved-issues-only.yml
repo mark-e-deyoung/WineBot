@@ -1,0 +1,95 @@
+name: Approved Issues Only
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+env:
+  UNAPPROVED_LABEL: unapproved
+  UNAPPROVED_ISSUE_COMMENT: "Thanks for the report. This project is invite-only and only accepts issue reports from approved collaborators."
+
+jobs:
+  enforce-approved-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce collaborator-only issue participation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+            const opener = context.payload.issue.user.login;
+            const label = process.env.UNAPPROVED_LABEL;
+            const comment = process.env.UNAPPROVED_ISSUE_COMMENT;
+
+            let approved = false;
+            try {
+              const resp = await github.request(
+                "GET /repos/{owner}/{repo}/collaborators/{username}",
+                { owner, repo, username: opener }
+              );
+              approved = resp.status === 204;
+            } catch (error) {
+              if (error.status !== 404) {
+                core.warning(`Collaborator check returned ${error.status}: ${error.message}`);
+              }
+              approved = false;
+            }
+
+            if (approved) {
+              core.info(`${opener} is an approved collaborator; no action needed.`);
+              return;
+            }
+
+            try {
+              await github.request("GET /repos/{owner}/{repo}/labels/{name}", {
+                owner,
+                repo,
+                name: label,
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                try {
+                  await github.request("POST /repos/{owner}/{repo}/labels", {
+                    owner,
+                    repo,
+                    name: label,
+                    color: "B60205",
+                    description: "Issue or PR opened by a non-collaborator in invite-only participation mode",
+                  });
+                } catch (createError) {
+                  if (createError.status !== 422) {
+                    throw createError;
+                  }
+                }
+              } else {
+                throw error;
+              }
+            }
+
+            await github.request("POST /repos/{owner}/{repo}/issues/{issue_number}/labels", {
+              owner,
+              repo,
+              issue_number,
+              labels: [label],
+            });
+
+            await github.request("POST /repos/{owner}/{repo}/issues/{issue_number}/comments", {
+              owner,
+              repo,
+              issue_number,
+              body: comment,
+            });
+
+            await github.request("PATCH /repos/{owner}/{repo}/issues/{issue_number}", {
+              owner,
+              repo,
+              issue_number,
+              state: "closed",
+            });
+
