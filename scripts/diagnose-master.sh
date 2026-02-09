@@ -15,17 +15,16 @@ log() {
 
 PHASE="${1:-all}"
 
-# 1. Environment & API Health
-if [[ "$PHASE" == "all" || "$PHASE" == "health" ]]; then
-    log "=== PHASE 1: Environment & API Health ==="
-    log "Waiting for API to be ready (up to 120s)..."
-    for i in $(seq 1 120); do
+wait_for_api_ready() {
+    local timeout="${1:-120}"
+    log "Waiting for API to be ready (up to ${timeout}s)..."
+    for i in $(seq 1 "$timeout"); do
         if curl -s http://localhost:8000/health > /dev/null; then
             log "API is ready."
-            break
+            return 0
         fi
-        if [ $i -eq 120 ]; then
-            log "ERROR: API failed to start within 120 seconds."
+        if [ "$i" -eq "$timeout" ]; then
+            log "ERROR: API failed to start within ${timeout} seconds."
             SESSION_DIR=$(cat /tmp/winebot_current_session 2>/dev/null || echo "")
             if [ -n "$SESSION_DIR" ]; then
                 log "Looking for logs in $SESSION_DIR/logs"
@@ -39,10 +38,16 @@ if [[ "$PHASE" == "all" || "$PHASE" == "health" ]]; then
                     tail -n 100 "$SESSION_DIR/logs/entrypoint.log"
                 fi
             fi
-            exit 1
+            return 1
         fi
         sleep 1
     done
+}
+
+# 1. Environment & API Health
+if [[ "$PHASE" == "all" || "$PHASE" == "health" ]]; then
+    log "=== PHASE 1: Environment & API Health ==="
+    wait_for_api_ready 120 || exit 1
 
     if ! curl -s --fail http://localhost:8000/health/environment | python3 -m json.tool > "$LOG_DIR/env_health.json"; then
         log "ERROR: Health check failed. API might be down or environment broken."
@@ -53,6 +58,7 @@ fi
 
 # 2. Start Full Tracing & Recording (Setup for following tests)
 if [[ "$PHASE" != "health" ]]; then
+    wait_for_api_ready 120 || exit 1
     log "=== SETUP: Initializing Tracing & Recording ==="
     # Grant control to agent for the duration of diagnostics
     curl -s -X POST http://localhost:8000/sessions/unknown/control/grant -H "Content-Type: application/json" -d '{"lease_seconds": 3600}' > /dev/null
@@ -76,7 +82,7 @@ if [[ "$PHASE" == "all" || "$PHASE" == "smoke" ]]; then
             log "Wine is ready."
             break
         fi
-        if [ $i -eq 120 ]; then
+        if [ "$i" -eq 120 ]; then
             log "ERROR: Wine failed to initialize within 120 seconds."
             exit 1
         fi
@@ -125,7 +131,8 @@ if [[ "$PHASE" == "all" || "$PHASE" == "trace" ]]; then
     
     check_trace() {
         local layer="$1"
-        local count=$(curl -s "http://localhost:8000/input/events?source=${layer}&since_epoch_ms=${T0}&limit=50" | python3 -c "import sys, json; print(len(json.load(sys.stdin).get('events', [])))" 2>/dev/null || echo 0)
+        local count
+        count="$(curl -s "http://localhost:8000/input/events?source=${layer}&since_epoch_ms=${T0}&limit=50" | python3 -c "import sys, json; print(len(json.load(sys.stdin).get('events', [])))" 2>/dev/null || echo 0)"
             if [ "$count" -gt 0 ]; then
                 log "Trace layer '$layer': OK ($count events)"
             else
@@ -159,15 +166,10 @@ fi
 if [[ "$PHASE" == "all" || "$PHASE" == "recording" ]]; then
     if [ "${WINEBOT_RECORD:-0}" = "1" ]; then
         log "=== PHASE 6: Recording Artifact Verification ==="
-        # Briefly stop recording to finalize file
-        curl -s -X POST http://localhost:8000/recording/stop > /dev/null
-        sleep 2
-        # Find most recent session
-        SESSION_DIR=$(ls -td /artifacts/sessions/* 2>/dev/null | head -1 || true)
-        if [ -n "$SESSION_DIR" ] && [ -f "$SESSION_DIR/video_001.mkv" ]; then
-            log "Recording OK: $SESSION_DIR/video_001.mkv"
+        if /scripts/recording-smoke-test.sh http://localhost:8000; then
+            log "Recording lifecycle + artifact checks: PASSED"
         else
-            log "Recording FAIL: Artifacts missing or incomplete in $SESSION_DIR"
+            log "Recording lifecycle + artifact checks: FAILED"
             exit 1
         fi
     fi

@@ -64,3 +64,26 @@ Useful environment knobs:
 - `MAX_SESSION_MB` (default `4096`)
 - `MAX_PID1_RSS_MB` (default `2048`)
 - `API_URL` and `API_TOKEN`
+
+## Recording Lifecycle Validation
+
+Use `scripts/recording-smoke-test.sh` to validate full recording lifecycle behavior and artifact correctness:
+
+- API lifecycle transitions: `start`, `pause`, `resume`, `stop`, and idempotent repeats.
+- Segment rollover behavior and part concatenation after pause/resume.
+- Artifact set per segment:
+  - `video_###.mkv`
+  - `events_###.jsonl`
+  - `events_###.vtt`
+  - `events_###.ass`
+  - `segment_###.json`
+- Media/container checks via `ffprobe`:
+  - video stream present
+  - subtitle streams present
+  - duration sane
+  - `WINEBOT_SESSION_ID` metadata tag present and matched
+- Timing/content alignment:
+  - event timeline monotonic
+  - subtitle cues monotonic
+  - annotation marker presence in events + VTT + ASS
+  - marker timing alignment between event log and subtitles
