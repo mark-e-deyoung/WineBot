@@ -40,7 +40,7 @@ x-winebot-base: &winebot_base
     dockerfile: docker/Dockerfile
     target: intent-${BUILD_INTENT:-rel}
     args:
-      BASE_IMAGE: ${BASE_IMAGE:-debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba}
+      BASE_IMAGE: ${BASE_IMAGE:-ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09}
       VCS_REF: ${VCS_REF:-local}
       BUILD_DATE: ${BUILD_DATE:-local}
       SOURCE_REPO: ${SOURCE_REPO:-https://github.com/mark-e-deyoung/WineBot}

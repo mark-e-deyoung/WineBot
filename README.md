@@ -43,7 +43,7 @@ Base runtime can be pinned independently:
 
 `BASE_IMAGE=ghcr.io/<owner>/winebot-base:<base-version>`
 
-CI/release builds read repository variable `WINEBOT_BASE_IMAGE` (fallback is pinned Debian digest).
+CI/release builds read repository variable `WINEBOT_BASE_IMAGE` (fallback is `ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09`).
 
 In `rel` and `rel-runner`, default logging is capped (`WARN`). Enable bounded support mode for triage:
 

@@ -77,7 +77,7 @@ jobs:
           file: docker/Dockerfile
           target: intent-test
           build-args: |
-            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba' }}
+            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09' }}
             BUILD_INTENT=test
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.run_id }}
@@ -246,7 +246,7 @@ jobs:
           file: docker/Dockerfile
           target: intent-rel
           build-args: |
-            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba' }}
+            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09' }}
             BUILD_INTENT=rel
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.run_id }}
@@ -265,7 +265,7 @@ jobs:
           file: docker/Dockerfile
           target: intent-rel-runner
           build-args: |
-            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba' }}
+            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09' }}
             BUILD_INTENT=rel-runner
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.run_id }}

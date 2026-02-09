@@ -6,7 +6,7 @@ PATTERNS_FILE="${ROOT_DIR}/policy/rel_forbidden_patterns.txt"
 TARGET_INTENT="${TARGET_INTENT:-rel}"
 IMAGE_TAG="${IMAGE_TAG:-winebot:${TARGET_INTENT}-check}"
 DOCKERFILE="${DOCKERFILE:-docker/Dockerfile}"
-BASE_IMAGE="${BASE_IMAGE:-debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba}"
+BASE_IMAGE="${BASE_IMAGE:-ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker command not found" >&2
