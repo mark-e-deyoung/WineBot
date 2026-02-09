@@ -1,3 +1,4 @@
 #!/bin/bash
 export WINEDEBUG=-all
+export PYTHONNOUSERSITE=1
 exec wine "/opt/winebot/windows-tools/Python/python.exe" "$@"
