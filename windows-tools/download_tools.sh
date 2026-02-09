@@ -43,10 +43,10 @@ curl -sL -o /tmp/python.zip "$PYTHON_URL"
 unzip -q -o /tmp/python.zip -d "$TOOLS_DIR/Python"
 rm /tmp/python.zip
 
-# Enable 'site' package for pip to work
-# The .pth file is named python313._pth (for 3.13)
-PTH_FILE="$TOOLS_DIR/Python/python313._pth"
-if [ -f "$PTH_FILE" ]; then
+# Enable 'site' package for pip to work.
+# Embedded Python ships a pythonXY._pth file; detect it dynamically.
+PTH_FILE="$(find "$TOOLS_DIR/Python" -maxdepth 1 -name 'python*._pth' | head -n 1)"
+if [ -n "$PTH_FILE" ] && [ -f "$PTH_FILE" ]; then
     sed -i 's/^#import site/import site/' "$PTH_FILE"
 fi
 

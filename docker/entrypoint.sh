@@ -52,6 +52,13 @@ source /scripts/init/20-setup-wine.sh
 echo "--> Pass 4: Services..."
 source /scripts/init/30-start-services.sh
 
+if [ "${DEBUG:-0}" = "1" ]; then
+    echo "--> DEBUG: Windows automation tool versions..."
+    (autoit /? | head -n 2) || true
+    (ahk /? | head -n 2) || true
+    (winpy -c "import sys; print(sys.version)" | head -n 1) || true
+fi
+
 # Keep container alive
 if [ $# -eq 0 ]; then
     tail -f /dev/null

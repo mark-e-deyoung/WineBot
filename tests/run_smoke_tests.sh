@@ -134,4 +134,11 @@ else
 fi
 echo "Advanced screenshot test complete."
 
+# Required single smoke evidence file
+/automation/screenshot.sh --window root --delay 1 --label "WindowsAutomationSmoke" /tmp/smoke_test.png
+if [ ! -s /tmp/smoke_test.png ]; then
+    echo "Error: /tmp/smoke_test.png missing or empty."
+    exit 1
+fi
+
 echo "--- All tests passed! ---"

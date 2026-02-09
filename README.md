@@ -189,10 +189,13 @@ WineBot includes pre-installed Windows automation tools running under Wine:
 - **Python 3.13** (`winpy`)
 
 See [docs/windows-automation-tools.md](docs/windows-automation-tools.md) for usage.
+Note: pywinauto is not part of the active toolchain in this release; revisit as Wine UIA support matures.
 
 Run the tool smoke tests:
 
 `docker compose -f compose/docker-compose.yml --profile headless exec --user winebot winebot ./tests/run_smoke_tests.sh`
+
+Expected smoke artifact: `/tmp/smoke_test.png`
 
 ## Smoke test
 
