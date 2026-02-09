@@ -153,7 +153,7 @@ jobs:
           provenance: mode=max
           sbom: true
       - name: Install cosign
-        uses: sigstore/cosign-installer@9614fa16f3d21a352d0d0e540e285f8d7a5674c3
+        uses: sigstore/cosign-installer@430b6a704fe0c92f1b1261d84376a900f38d90ff
       - name: Sign image digest (keyless OIDC)
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
