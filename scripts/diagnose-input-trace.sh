@@ -13,6 +13,7 @@ Run input tracing diagnostics to bisect the input stack.
 
 Options:
   --api-url URL        API base URL (default: http://localhost:8000)
+  --api-wait-seconds N Seconds to wait for API readiness (default: 60)
   --layers CSV         Layers to test: x11,x11_core,windows,client,network (default: x11,x11_core,windows,client,network)
   --log-dir DIR        Override diagnostics log directory
   --menu-offset N      Y offset from window top for menu click (default: 45)
@@ -40,6 +41,7 @@ EOF
 }
 
 API_URL="${API_URL:-http://localhost:8000}"
+API_WAIT_SECONDS="${API_WAIT_SECONDS:-60}"
 TRACE_LAYERS="${TRACE_LAYERS:-x11,x11_core,windows,client,network}"
 LOG_DIR="${LOG_DIR:-}"
 SKIP_NETWORK=0
@@ -73,6 +75,10 @@ while [ $# -gt 0 ]; do
       ;;
     --layers)
       TRACE_LAYERS="${2:-}"
+      shift 2
+      ;;
+    --api-wait-seconds)
+      API_WAIT_SECONDS="${2:-}"
       shift 2
       ;;
     --log-dir)
@@ -238,6 +244,19 @@ api_post_json() {
   local path="$1"
   local json="$2"
   curl -sS -X POST "${api_headers[@]}" -H "Content-Type: application/json" -d "$json" "${API_URL}${path}"
+}
+
+wait_for_api() {
+  local timeout="${1:-60}"
+  local waited=0
+  while [ "$waited" -lt "$timeout" ]; do
+    if api_get "/health" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
 }
 
 now_ms() {
@@ -1067,7 +1086,7 @@ else
 fi
 start_x11_core_trace
 
-if ! api_get "/health" >/dev/null 2>&1; then
+if ! wait_for_api "$API_WAIT_SECONDS"; then
   log "ERROR: API not reachable at ${API_URL}"
   exit 1
 fi
