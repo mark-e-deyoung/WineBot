@@ -1,23 +1,22 @@
 # Status
 
 ## Current state
-- **Wine 10.0 Hardening:** Resolved "clicks not passing through" blocker by forcing a 1920x1080 virtual desktop via registry keys and a background supervisor daemon that keeps "Wine Desktop" maximized and undecorated.
-- **Recorder v2:** Segmented recording system verified. Fixed global metadata embedding in MKV files (WINEBOT_SESSION_ID) to support robust traceability.
-- **Dashboard UI:** Added dynamic versioning (Release v0.9.0) and a "Reset Workspace" recovery button to fix window manager desync.
-- **API Performance:** Optimized with native /proc scanning and async gathering for health checks; includes a background reaper for zombie processes and a disk space watchdog.
-- **Testing:** Comprehensive recording integration tests passing; diagnostic suite verifies Mouse/Keyboard/CV/Clipboard/IO across Notepad, Regedit, and Winefile.
+- **Version:** v0.9.2 (Stable)
+- **Image Optimization:** Refactored Dockerfile with multi-stage builds, reducing `rel` image size by ~35% (to ~4.3GB).
+- **API Hardening:** Fixed concurrency races and path validation in session lifecycle (`suspend`/`resume`) endpoints. Added rigorous regression tests.
+- **Stability Monitoring:** Integrated `scripts/diagnose-trace-soak.sh` into a new GitHub Actions nightly workflow (`nightly-soak.yml`).
+- **Wine 10.0 Hardening:** Verified full-desktop input handling and 1920x1080 virtual desktop enforcement.
 
 ## Validation so far
-- **Wine Desktop Maximization:** Verified via X11 probes that the Wine 10.0 desktop window now correctly covers the full 1920x1080 canvas, allowing VNC clicks to register globally.
-- **Recording Tests:** `tests/run_recording_tests.sh` passes 100%, verifying video stream health, metadata tags, and event log synchronization.
-- **Process Persistence:** Implemented `wineserver -p` and an explorer supervisor in `entrypoint.sh` to prevent accidental teardown of the Windows environment.
-- **VNC Input Fix:** Identified and resolved a blocking issue in `x11vnc` where concurrent FramebufferUpdates prevented input injection. Added `-threads` to `x11vnc` in `entrypoint.sh`.
+- **Image Build:** `verify-rel` and `verify-rel-runner` targets build successfully with reduced footprint.
+- **API Tests:** New `tests/test_lifecycle_hardened.py` passes, covering concurrent state transitions and path traversal prevention.
+- **Soak Testing:** Diagnostic scripts validated locally; CI workflow ready for nightly execution.
 
 ## Known quirks
 - `docker-compose` v1 may error with `ContainerConfig` on recreate; use `down --remove-orphans` before `up`.
-- `vulkan_init_once` errors in logs are harmless (no GPU in container); Wine fallback to software rendering works correctly.
+- `stable` tag on GHCR needs manual alignment to `0.9.2` digest (pending auth refresh).
 
 ## Next steps (pick up here)
-1. Tag and release v0.9.0 as stable.
-2. Update documentation (README.md) to reflect the new resolution/maximization requirements.
-3. Clean up the `artifacts/sessions` volume and prepare for production GHCR release.
+1. Monitor the first run of the nightly soak workflow.
+2. Perform the one-time GHCR retag for `stable`.
+3. Further prune `base-runtime` layers if needed.

@@ -4,9 +4,17 @@ ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_REPO="https://github.com/mark-e-deyoung/WineBot"
 
-FROM ${BASE_IMAGE} AS base-runtime
-ARG BASE_IMAGE
+# --- Stage 1: Tool Builder ---
+FROM debian:trixie-slim AS tools-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl unzip ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY windows-tools /tmp/windows-tools
+RUN bash /tmp/windows-tools/download_tools.sh
 
+# --- Stage 2: Base Core (Headless) ---
+FROM ${BASE_IMAGE} AS base-core
+ARG BASE_IMAGE
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN if [ -f /etc/apt/sources.list ]; then \
@@ -19,39 +27,36 @@ RUN if [ -f /etc/apt/sources.list ]; then \
     && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         wine wine64 wine32 cabextract \
-        xvfb xauth openbox xdotool wmctrl x11vnc novnc websockify xinput \
+        xvfb xauth xdotool wmctrl xinput \
         libxcomposite1 libxinerama1 libxrandr2 libxrender1 libxcursor1 libxi6 libxtst6 libxfixes3 libvulkan1 \
-        fonts-liberation x11-xserver-utils tint2 \
-        python3 python3-pip python3-opencv gdb \
+        fonts-liberation \
+        python3 python3-pip gdb \
         imagemagick x11-utils procps ffmpeg \
         ca-certificates curl gosu unzip \
     && curl -sL -o /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/20250102/src/winetricks \
     && chmod +x /usr/local/bin/winetricks \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /tmp/.X11-unix \
-    && chmod 1777 /tmp/.X11-unix
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 
-# --- Windows Automation Tools ---
-COPY windows-tools /tmp/windows-tools
-RUN bash /tmp/windows-tools/download_tools.sh \
-    && cp /tmp/windows-tools/wrappers/* /usr/local/bin/ \
-    && chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy \
-    && rm -rf /tmp/windows-tools
+# Copy tools from builder
+COPY --from=tools-builder /opt/winebot/windows-tools /opt/winebot/windows-tools
+COPY windows-tools/wrappers/ /usr/local/bin/
+RUN chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy
 
-# Bootstrap pip for Windows Python
+# Bootstrap pip for Windows Python (requires wine in this stage)
 RUN curl -sL -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py \
     && wine /opt/winebot/windows-tools/Python/python.exe /tmp/get-pip.py --no-warn-script-location \
     && wine /opt/winebot/windows-tools/Python/python.exe -m pip install --upgrade pip setuptools wheel \
     && rm /tmp/get-pip.py
-# --------------------------------
 
-# Install runtime Python dependencies shared by release-like intents.
+# Install runtime Python dependencies
 COPY requirements-rel.txt /tmp/requirements-rel.txt
 RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-rel.txt \
     && rm /tmp/requirements-rel.txt
 
-RUN useradd -m -u 1000 -s /bin/bash winebot \
+# Common Setup
+RUN id -u winebot >/dev/null 2>&1 || useradd -m -u 1000 -s /bin/bash winebot \
     && mkdir -p /wineprefix /apps /automation /api \
     && chmod 777 /wineprefix \
     && chown -R winebot:winebot /apps /automation /api
@@ -66,40 +71,51 @@ ENV WINEPREFIX=/wineprefix \
     NOVNC_PORT=6080
 
 COPY automation /automation
-COPY docker/openbox/ /etc/xdg/openbox/
-COPY docker/tint2/tint2rc /etc/xdg/tint2/tint2rc
 COPY scripts /scripts
 COPY api /api
 COPY VERSION /VERSION
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chown -R winebot:winebot /automation /scripts /api \
     && find /automation /scripts -name "*.sh" -exec chmod +x {} + \
-    && find /automation /scripts -name "*.py" -exec chmod +x {} +
-RUN chmod +x /entrypoint.sh
+    && find /automation /scripts -name "*.py" -exec chmod +x {} + \
+    && chmod +x /entrypoint.sh
 
 WORKDIR /
 EXPOSE 8000
 
-FROM base-runtime AS intent-dev
+# --- Stage 3: Base Interactive (Adds VNC stack) ---
+FROM base-core AS base-interactive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openbox x11vnc novnc websockify tint2 x11-xserver-utils \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY docker/openbox/ /etc/xdg/openbox/
+COPY docker/tint2/tint2rc /etc/xdg/tint2/tint2rc
+
+# --- Final Intents ---
+
+FROM base-core AS intent-rel-runner
 ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
-RUN apt-get update && apt-get install -y --no-install-recommends strace lsof nano && rm -rf /var/lib/apt/lists/*
-COPY requirements-devtest.txt /tmp/requirements-devtest.txt
-RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-devtest.txt \
-    && rm /tmp/requirements-devtest.txt
-COPY tests /tests
-RUN chown -R winebot:winebot /tests \
-    && find /tests -name "*.sh" -exec chmod +x {} + \
-    && find /tests -name "*.py" -exec chmod +x {} +
-ENV BUILD_INTENT=dev
-LABEL io.winebot.build_intent="dev" \
+ENV BUILD_INTENT=rel-runner
+LABEL io.winebot.build_intent="rel-runner" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="${SOURCE_REPO}"
 ENTRYPOINT ["/entrypoint.sh"]
 
-FROM base-runtime AS intent-test
+FROM base-interactive AS intent-rel
+ARG VCS_REF
+ARG BUILD_DATE
+ARG SOURCE_REPO
+ENV BUILD_INTENT=rel
+LABEL io.winebot.build_intent="rel" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="${SOURCE_REPO}"
+ENTRYPOINT ["/entrypoint.sh"]
+
+FROM base-interactive AS intent-test
 ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
@@ -117,32 +133,16 @@ LABEL io.winebot.build_intent="test" \
       org.opencontainers.image.source="${SOURCE_REPO}"
 ENTRYPOINT ["/entrypoint.sh"]
 
-FROM base-runtime AS intent-rel
+FROM intent-test AS intent-dev
 ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
-ENV BUILD_INTENT=rel
-LABEL io.winebot.build_intent="rel" \
+RUN apt-get update && apt-get install -y --no-install-recommends strace lsof nano && rm -rf /var/lib/apt/lists/*
+ENV BUILD_INTENT=dev
+LABEL io.winebot.build_intent="dev" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="${SOURCE_REPO}"
 ENTRYPOINT ["/entrypoint.sh"]
 
-FROM base-runtime AS intent-rel-runner
-ARG VCS_REF
-ARG BUILD_DATE
-ARG SOURCE_REPO
-RUN apt-get update \
-    && apt-get purge -y --auto-remove x11vnc novnc websockify \
-    && rm -rf /var/lib/apt/lists/*
-ENV BUILD_INTENT=rel-runner \
-    MODE=headless \
-    ENABLE_VNC=0
-LABEL io.winebot.build_intent="rel-runner" \
-      org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.source="${SOURCE_REPO}"
-ENTRYPOINT ["/entrypoint.sh"]
-
-# Compose and workflows should build target: intent-${BUILD_INTENT}.
 # Cache bust: Mon Feb 09 2026

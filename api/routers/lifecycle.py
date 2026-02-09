@@ -241,9 +241,12 @@ async def suspend_session(data: Optional[SessionSuspendModel] = Body(default=Non
     if data is None:
         data = SessionSuspendModel()
     current_session = read_session_dir()
-    session_dir = resolve_session_dir(data.session_id, data.session_dir, data.session_root) if (
-        data.session_id or data.session_dir
-    ) else current_session
+    try:
+        session_dir = resolve_session_dir(data.session_id, data.session_dir, data.session_root) if (
+            data.session_id or data.session_dir
+        ) else current_session
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not session_dir:
         raise HTTPException(status_code=404, detail="No active session to suspend")
     if not os.path.isdir(session_dir):
@@ -266,7 +269,10 @@ async def resume_session(data: Optional[SessionResumeModel] = Body(default=None)
     if data is None:
         data = SessionResumeModel()
     current_session = read_session_dir()
-    target_dir = resolve_session_dir(data.session_id, data.session_dir, data.session_root)
+    try:
+        target_dir = resolve_session_dir(data.session_id, data.session_dir, data.session_root)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not os.path.isdir(target_dir):
         raise HTTPException(status_code=404, detail="Session directory not found")
     session_json = os.path.join(target_dir, "session.json")
