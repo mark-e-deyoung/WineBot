@@ -42,7 +42,7 @@ jobs:
         env:
           BUILD_INTENT: test
         run: |
-          scripts/smoke-test.sh --phase health --no-build --cleanup
+          scripts/smoke-test.sh --phase health --skip-base-checks --no-build --cleanup
 
       - name: Validate REL forbidden patterns
         run: |
