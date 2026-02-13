@@ -64,25 +64,30 @@ run_wine_setup_step() {
     return 1
 }
 
+prefix_init_in_progress="0"
 if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     echo "--> Initializing WINEPREFIX in background..."
     export WINEDLLOVERRIDES="mscoree,mshtml="
     wineboot -u >/dev/null 2>&1 &
-    # We don't wait here; services will start and can check wine status themselves.
+    prefix_init_in_progress="1"
 fi
 
 # Theme & Settings
-run_wine_setup_step "FontSmoothing" \
-    wine reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v FontSmoothing /t REG_SZ /d 2 /f || true
-run_wine_setup_step "FontSmoothingType" \
-    wine reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v FontSmoothingType /t REG_DWORD /d 2 /f || true
-run_wine_setup_step "UseXInput2" \
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f || true
-run_wine_setup_step "Managed" \
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d "Y" /f || true
+if [ "$prefix_init_in_progress" = "1" ]; then
+    echo "--> Prefix initialization in progress; deferring theme/registry tuning."
+else
+    run_wine_setup_step "FontSmoothing" \
+        wine reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v FontSmoothing /t REG_SZ /d 2 /f || true
+    run_wine_setup_step "FontSmoothingType" \
+        wine reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v FontSmoothingType /t REG_DWORD /d 2 /f || true
+    run_wine_setup_step "UseXInput2" \
+        wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f || true
+    run_wine_setup_step "Managed" \
+        wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d "Y" /f || true
 
-if [ -x "/scripts/install-theme.sh" ]; then
-    /scripts/install-theme.sh || echo "WARN: install-theme.sh failed; continuing." >&2
+    if [ -x "/scripts/install-theme.sh" ]; then
+        /scripts/install-theme.sh || echo "WARN: install-theme.sh failed; continuing." >&2
+    fi
 fi
 
 # Cleanup
