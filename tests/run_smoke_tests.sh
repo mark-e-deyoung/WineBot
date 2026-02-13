@@ -55,18 +55,18 @@ fi
 take_screenshot "x11_helper"
 echo "X11 helpers test complete."
 
-# 4. run-ahk helper
-echo "Testing run-ahk helper..."
-# Use existing test script, test focus syntax (even if target missing) and logging
-/scripts/run-ahk.sh tests/test_ahk.ahk --focus-title "Shell_TrayWnd" --log /tmp/run_ahk_test.log
+# 4. AHK execution via winebotctl
+echo "Testing AHK execution via winebotctl..."
+# Use existing test script and focus syntax (even if target missing)
+/scripts/winebotctl run ahk --file tests/test_ahk.ahk --focus-title "Shell_TrayWnd" > /tmp/run_ahk_test.log
 if [ -f /tmp/run_ahk_test.log ]; then
-    echo "run-ahk log created."
+    echo "winebotctl ahk output captured."
     cat /tmp/run_ahk_test.log
 else
-    echo "Error: run-ahk log missing."
+    echo "Error: winebotctl ahk output missing."
     exit 1
 fi
-echo "run-ahk helper test complete."
+echo "winebotctl ahk test complete."
 
 # 5. Inspectors (Installation & Launch)
 echo "Testing Inspectors..."
@@ -74,10 +74,10 @@ echo "Testing Inspectors..."
 
 # Helper to test background launch
 test_launch() {
-    local script="$1"
+    local command="$1"
     local name="$2"
     echo "Launching $name..."
-    "$script" &
+    bash -lc "$command" &
     local pid=$!
     sleep 5
     if kill -0 "$pid" 2>/dev/null; then
@@ -90,7 +90,7 @@ test_launch() {
 }
 
 test_launch "/scripts/au3info.sh" "Au3Info"
-test_launch "/scripts/winspy.sh" "WinSpy"
+test_launch "wine /opt/winebot/windows-tools/WinSpy/winspy.exe" "WinSpy"
 
 echo "Inspector tests complete."
 

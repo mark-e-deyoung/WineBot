@@ -144,13 +144,9 @@ Preferred (API-first) usage:
 ```bash
 scripts/winebotctl run ahk --file my_script.ahk --focus-title "My App"
 ```
-Legacy wrapper (deprecated):
-```bash
-/scripts/run-ahk.sh my_script.ahk --focus-title "My App" --log /tmp/ahk.log
-```
 
 ### Windows Inspectors (Au3Info / WinSpy)
-You can inspect window controls (ClassNN, ID) using Windows tools running under Wine. These scripts are legacy; prefer the API inspection below.
+Use API inspection for agent-driven automation. Native inspector binaries are still available for interactive debugging when needed.
 
 **Enable Inspectors:**
 Run the installer inside the container (only needs to be done once per container if not persisted):
@@ -158,13 +154,13 @@ Run the installer inside the container (only needs to be done once per container
 /scripts/install-inspectors.sh
 ```
 
-**Run Inspectors (legacy):**
+**Run Inspectors (interactive tools):**
 ```bash
 # AutoIt Window Info (pre-installed)
 /scripts/au3info.sh
 
-# WinSpy (if installed)
-/scripts/winspy.sh
+# WinSpy (if installed via /scripts/install-inspectors.sh)
+wine /opt/winebot/windows-tools/WinSpy/winspy.exe
 ```
 *Note: These run graphically. Use VNC/noVNC to interact with them.*
 
