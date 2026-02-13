@@ -9,6 +9,7 @@ from api.utils.files import read_session_dir, append_lifecycle_event
 from api.utils.process import process_store
 from api.core.broker import broker
 from api.core.models import ControlMode, UserIntent, AgentStatus
+from api.core.versioning import API_VERSION, ARTIFACT_SCHEMA_VERSION, EVENT_SCHEMA_VERSION
 from api.utils.process import safe_command, safe_async_command, check_binary, pid_running, manage_process, run_async_command, run_command
 from api.utils.files import statvfs_info, read_session_dir, append_lifecycle_event, recorder_running, ensure_session_dir, recorder_state, to_wine_path, append_input_event, SESSION_FILE, write_session_dir, write_session_manifest, ensure_session_subdirs, ensure_user_profile, link_wine_user_dir, write_session_state, validate_path
 from api.routers.health import meminfo_summary
@@ -55,6 +56,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="WineBot API", description="Internal API for controlling WineBot", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def add_version_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-WineBot-API-Version"] = API_VERSION
+    response.headers["X-WineBot-Build-Version"] = VERSION
+    response.headers["X-WineBot-Artifact-Schema-Version"] = ARTIFACT_SCHEMA_VERSION
+    response.headers["X-WineBot-Event-Schema-Version"] = EVENT_SCHEMA_VERSION
+    return response
+
 if os.path.isdir(NOVNC_CORE_DIR):
     app.mount("/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core")
 if os.path.isdir(NOVNC_VENDOR_DIR):
@@ -92,7 +103,12 @@ app.include_router(automation.router)
 
 @app.get("/version")
 def get_version():
-    return {"version": VERSION}
+    return {
+        "version": VERSION,
+        "api_version": API_VERSION,
+        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+        "event_schema_version": EVENT_SCHEMA_VERSION,
+    }
 
 @app.get("/ui")
 @app.get("/ui/")

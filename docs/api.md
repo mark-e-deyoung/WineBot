@@ -31,6 +31,19 @@ Examples:
 
 Idempotent mode is supported (see `--idempotent` / `--no-idempotent`) so repeat invocations can safely reuse the same response when desired.
 
+## Versioning and Compatibility
+
+WineBot publishes explicit API and artifact/event schema versions.
+
+- HTTP responses include:
+  - `X-WineBot-API-Version`
+  - `X-WineBot-Build-Version`
+  - `X-WineBot-Artifact-Schema-Version`
+  - `X-WineBot-Event-Schema-Version`
+- `GET /version` returns the same values as JSON fields.
+- `session.json`, `segment_*.json`, and JSONL event streams include `schema_version`.
+- Readers default missing `schema_version` to `1.0` for backward compatibility with older artifacts.
+
 ## Endpoints
 
 ### Quick Reference

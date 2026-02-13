@@ -383,6 +383,7 @@ def adjust_events_for_pauses(events):
             tags=event.tags,
             source=event.source,
             extra=event.extra,
+            schema_version=event.schema_version,
         )
         adjusted.append(new_event)
     return adjusted
@@ -425,6 +426,7 @@ def cmd_start(args):
     if segment is not None:
         parts_file = parts_file_path(session_dir, segment)
         segment_manifest = {
+            "schema_version": manifest.schema_version,
             "session_id": manifest.session_id,
             "segment": segment,
             "start_time_epoch": start_time_epoch,

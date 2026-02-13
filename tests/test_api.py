@@ -107,4 +107,18 @@ def test_run_app_invalid_path(mock_validate, auth_headers):
 
         assert response.status_code == 400 
 
+
+def test_version_endpoint_and_headers(auth_headers):
+    with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
+        response = client.get("/version", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["api_version"] == "1.0"
+        assert payload["artifact_schema_version"] == "1.0"
+        assert payload["event_schema_version"] == "1.0"
+        assert response.headers["X-WineBot-API-Version"] == payload["api_version"]
+        assert response.headers["X-WineBot-Build-Version"] == payload["version"]
+        assert response.headers["X-WineBot-Artifact-Schema-Version"] == payload["artifact_schema_version"]
+        assert response.headers["X-WineBot-Event-Schema-Version"] == payload["event_schema_version"]
+
  

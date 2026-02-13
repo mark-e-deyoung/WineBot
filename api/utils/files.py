@@ -6,6 +6,7 @@ import datetime
 import platform
 from pathlib import Path
 from typing import Dict, Any, Optional
+from api.core.versioning import ARTIFACT_SCHEMA_VERSION, EVENT_SCHEMA_VERSION
 from api.utils.process import pid_running
 
 SESSION_FILE = "/tmp/winebot_current_session"
@@ -77,6 +78,7 @@ def append_lifecycle_event(
     if not session_dir:
         return
     event = {
+        "schema_version": EVENT_SCHEMA_VERSION,
         "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "timestamp_epoch_ms": int(time.time() * 1000),
         "session_id": session_id_from_dir(session_dir),
@@ -299,6 +301,7 @@ def write_session_dir(path: str) -> None:
 def write_session_manifest(session_dir: str, session_id: str) -> None:
     try:
         manifest = {
+            "schema_version": ARTIFACT_SCHEMA_VERSION,
             "session_id": session_id,
             "start_time_epoch": time.time(),
             "start_time_iso": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -402,13 +405,15 @@ def read_session_state(session_dir: str) -> Optional[str]:
 
 def append_trace_event(path: str, payload: Dict[str, Any]) -> None:
     try:
+        payload_with_version = dict(payload)
+        payload_with_version.setdefault("schema_version", EVENT_SCHEMA_VERSION)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a") as f:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
             except Exception:
                 pass
-            f.write(json.dumps(payload) + "\n")
+            f.write(json.dumps(payload_with_version) + "\n")
             f.flush()
             try:
                 fcntl.flock(f, fcntl.LOCK_UN)
@@ -421,6 +426,7 @@ def append_input_event(session_dir: Optional[str], event: Dict[str, Any]) -> Non
     if not session_dir:
         return
     payload = dict(event)
+    payload.setdefault("schema_version", EVENT_SCHEMA_VERSION)
     payload.setdefault("timestamp_utc", datetime.datetime.now(datetime.timezone.utc).isoformat())
     payload.setdefault("timestamp_epoch_ms", int(time.time() * 1000))
     payload.setdefault("session_id", session_id_from_dir(session_dir))

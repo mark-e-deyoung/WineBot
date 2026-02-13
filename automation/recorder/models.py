@@ -3,6 +3,12 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any
 
+try:
+    from api.core.versioning import ARTIFACT_SCHEMA_VERSION, EVENT_SCHEMA_VERSION
+except Exception:
+    ARTIFACT_SCHEMA_VERSION = "1.0"
+    EVENT_SCHEMA_VERSION = "1.0"
+
 @dataclass
 class SessionManifest:
     session_id: str
@@ -13,6 +19,7 @@ class SessionManifest:
     resolution: str
     fps: int
     git_sha: Optional[str] = None
+    schema_version: str = ARTIFACT_SCHEMA_VERSION
     
     def to_json(self):
         return json.dumps(asdict(self), indent=2)
@@ -20,6 +27,7 @@ class SessionManifest:
     @staticmethod
     def from_json(json_str: str):
         data = json.loads(json_str)
+        data.setdefault("schema_version", ARTIFACT_SCHEMA_VERSION)
         return SessionManifest(**data)
 
 @dataclass
@@ -35,6 +43,7 @@ class Event:
     tags: List[str] = field(default_factory=list)
     source: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
+    schema_version: str = EVENT_SCHEMA_VERSION
 
     def to_json(self):
         # Filter out None values to keep log clean
@@ -44,4 +53,5 @@ class Event:
     @staticmethod
     def from_json(json_str: str):
         data = json.loads(json_str)
+        data.setdefault("schema_version", EVENT_SCHEMA_VERSION)
         return Event(**data)

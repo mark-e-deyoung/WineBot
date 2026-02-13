@@ -18,9 +18,36 @@ class TestRecorderModels(unittest.TestCase):
         data = json.loads(json_str)
         self.assertEqual(data['message'], "Hello")
         self.assertEqual(data['pos']['x'], 10)
+        self.assertEqual(data['schema_version'], "1.0")
         
         e2 = Event.from_json(json_str)
         self.assertEqual(e, e2)
+
+    def test_event_from_json_backfills_schema_version(self):
+        raw = {
+            "session_id": "sess-1",
+            "t_rel_ms": 1,
+            "t_epoch_ms": 2,
+            "level": "INFO",
+            "kind": "test",
+            "message": "legacy",
+        }
+        event = Event.from_json(json.dumps(raw))
+        self.assertEqual(event.schema_version, "1.0")
+
+    def test_manifest_from_json_backfills_schema_version(self):
+        raw = {
+            "session_id": "sess-1",
+            "start_time_epoch": 1.0,
+            "start_time_iso": "2026-01-01T00:00:00+00:00",
+            "hostname": "host",
+            "display": ":99",
+            "resolution": "1280x720",
+            "fps": 30,
+            "git_sha": None,
+        }
+        manifest = SessionManifest.from_json(json.dumps(raw))
+        self.assertEqual(manifest.schema_version, "1.0")
 
 class TestSubtitles(unittest.TestCase):
     def test_vtt_generation(self):
