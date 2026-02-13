@@ -1,10 +1,15 @@
 import asyncio
-import os
 from api.core.models import RecorderState
-from api.utils.files import read_pid, recorder_pid, recorder_state, write_recorder_state, recorder_running
+from api.utils.files import (
+    recorder_state,
+    write_recorder_state,
+    recorder_running
+)
 from api.utils.process import run_async_command
 
+
 recorder_lock = asyncio.Lock()
+
 
 def recording_status(session_dir: str | None, enabled: bool) -> dict:
     if not enabled:
@@ -23,9 +28,11 @@ def recording_status(session_dir: str | None, enabled: bool) -> dict:
         return {"state": RecorderState.STOPPING.value, "running": False}
     return {"state": RecorderState.IDLE.value, "running": False}
 
+
 async def stop_recording():
-    from api.utils.files import read_session_dir # Import locally to avoid circular dependency if files imports recorder (it doesn't currently, but safe)
-    
+    # Import locally to avoid circular dependency
+    from api.utils.files import read_session_dir
+
     session_dir = read_session_dir()
     if not session_dir:
         return {"status": "already_stopped"}
@@ -34,7 +41,10 @@ async def stop_recording():
         return {"status": "already_stopped", "session_dir": session_dir}
 
     write_recorder_state(session_dir, RecorderState.STOPPING.value)
-    cmd = ["python3", "-m", "automation.recorder", "stop", "--session-dir", session_dir]
+    cmd = [
+        "python3", "-m", "automation.recorder",
+        "stop", "--session-dir", session_dir
+    ]
     result = await run_async_command(cmd)
     if not result["ok"]:
         # Log error? raise?

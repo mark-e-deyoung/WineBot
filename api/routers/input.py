@@ -10,22 +10,63 @@ import json
 import signal
 import threading
 from collections import deque
-from api.core.models import ClickModel, InputTraceStartModel, InputTraceStopModel, InputTraceX11CoreStartModel, InputTraceX11CoreStopModel, InputTraceClientStartModel, InputTraceClientStopModel, InputTraceWindowsStartModel, InputTraceWindowsStopModel
+from api.core.models import (
+    ClickModel,
+    InputTraceStartModel,
+    InputTraceStopModel,
+    InputTraceX11CoreStartModel,
+    InputTraceX11CoreStopModel,
+    InputTraceClientStartModel,
+    InputTraceClientStopModel,
+    InputTraceWindowsStartModel,
+    InputTraceWindowsStopModel
+)
 from api.core.broker import broker
-from api.utils.files import (ensure_session_dir, append_input_event, append_trace_event, read_session_dir, session_id_from_dir, resolve_session_dir, 
-                             input_trace_pid, input_trace_running, input_trace_state, input_trace_log_path,
-                             input_trace_x11_core_pid, input_trace_x11_core_running, input_trace_x11_core_state, input_trace_x11_core_log_path, input_trace_x11_core_pid_path, write_input_trace_x11_core_state,
-                             input_trace_client_enabled, input_trace_client_log_path, write_input_trace_client_state,
-                             input_trace_windows_pid, input_trace_windows_running, input_trace_windows_state, input_trace_windows_backend, input_trace_windows_log_path, input_trace_windows_pid_path, write_input_trace_windows_state, write_input_trace_windows_backend,
-                             input_trace_network_pid, input_trace_network_running, input_trace_network_state, input_trace_network_log_path, write_input_trace_network_state,
-                             append_lifecycle_event, to_wine_path)
+from api.utils.files import (
+    ensure_session_dir,
+    append_input_event,
+    append_trace_event,
+    read_session_dir,
+    session_id_from_dir,
+    resolve_session_dir,
+    input_trace_pid,
+    input_trace_running,
+    input_trace_state,
+    input_trace_log_path,
+    input_trace_x11_core_pid,
+    input_trace_x11_core_running,
+    input_trace_x11_core_state,
+    input_trace_x11_core_log_path,
+    input_trace_x11_core_pid_path,
+    write_input_trace_x11_core_state,
+    input_trace_client_enabled,
+    input_trace_client_log_path,
+    write_input_trace_client_state,
+    input_trace_windows_pid,
+    input_trace_windows_running,
+    input_trace_windows_state,
+    input_trace_windows_backend,
+    input_trace_windows_log_path,
+    input_trace_windows_pid_path,
+    write_input_trace_windows_state,
+    write_input_trace_windows_backend,
+    input_trace_network_pid,
+    input_trace_network_running,
+    input_trace_network_state,
+    input_trace_network_log_path,
+    write_input_trace_network_state,
+    append_lifecycle_event,
+    to_wine_path
+)
 from api.utils.process import run_command, manage_process, pid_running, safe_command
+
 
 router = APIRouter(prefix="/input", tags=["input"])
 input_trace_lock = threading.Lock()
 input_trace_x11_core_lock = threading.Lock()
 input_trace_windows_lock = threading.Lock()
 input_trace_network_lock = threading.Lock()
+
 
 @router.get("/events")
 def input_events(
@@ -59,10 +100,10 @@ def input_events(
         path = input_trace_network_log_path(target_dir)
     else:
         path = input_trace_log_path(target_dir)
-        
+
     if not os.path.exists(path):
         return {"events": []}
-    
+
     lines = deque(maxlen=limit)
     events = []
     try:
@@ -88,11 +129,14 @@ def input_events(
         pass
     return {"events": events, "log_path": path}
 
+
 @router.post("/mouse/click")
 async def click_at(data: ClickModel):
     """Click at coordinates (x, y)."""
     if not await broker.check_access():
-        raise HTTPException(status_code=423, detail="Agent control denied by policy")
+        raise HTTPException(
+            status_code=423, detail="Agent control denied by policy"
+        )
 
     session_dir = ensure_session_dir()
     trace_id = uuid.uuid4().hex
@@ -416,7 +460,10 @@ def input_trace_windows_start(data: Optional[InputTraceWindowsStartModel] = Body
         warnings = []
 
         def start_ahk() -> subprocess.Popen:
-            cmd = ["ahk", ahk_script, to_wine_path(log_path), str(motion_ms), session_id]
+            cmd = [
+                "ahk", ahk_script, to_wine_path(log_path),
+                str(motion_ms), session_id
+            ]
             if debug_keys:
                 cmd.append(",".join(debug_keys))
                 if data.debug_sample_ms is not None:

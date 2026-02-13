@@ -2,10 +2,15 @@ from fastapi import APIRouter
 import os
 import time
 import platform
-from api.utils.process import check_binary, safe_command, safe_async_command, find_processes, pid_running
-from api.utils.files import statvfs_info, read_session_dir, session_id_from_dir, input_trace_pid
-from api.core.recorder import recording_status, RecorderState
-from api.core.broker import broker
+from api.utils.process import (
+    check_binary,
+    safe_command,
+    safe_async_command,
+    find_processes
+)
+from api.utils.files import statvfs_info, read_session_dir
+from api.core.recorder import recording_status
+
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -29,9 +34,13 @@ def health_check():
     """High-level health summary."""
     x11 = safe_command(["xdpyinfo"])
     wineprefix = os.getenv("WINEPREFIX", "/wineprefix")
-    prefix_ok = os.path.isdir(wineprefix) and os.path.exists(os.path.join(wineprefix, "system.reg"))
+    prefix_ok = os.path.isdir(wineprefix) and os.path.exists(
+        os.path.join(wineprefix, "system.reg")
+    )
 
-    required_tools = ["winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb"]
+    required_tools = [
+        "winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb"
+    ]
     missing = [t for t in required_tools if not check_binary(t)["present"]]
 
     storage_paths = ["/wineprefix", "/artifacts", "/tmp"]
@@ -52,23 +61,26 @@ def health_check():
         "uptime_seconds": int(time.time() - START_TIME),
     }
 
+
 @router.get("/environment")
 async def health_environment():
     """Deep validation of the X11 and Wine driver environment."""
     x11 = await safe_async_command(["xdpyinfo"])
-    
+
     # Wine driver check: This verifies if winex11.drv can actually initialize
-    wine_driver = await safe_async_command(["wine", "cmd", "/c", "echo Driver Check"])
-    
+    wine_driver = await safe_async_command(
+        ["wine", "cmd", "/c", "echo Driver Check"]
+    )
+
     # Process checks
     wm_pids = find_processes("openbox", exact=True)
     xvfb_pids = find_processes("Xvfb", exact=True)
     explorer_pids = find_processes("explorer.exe")
-    
+
     # Driver capability details
     driver_ok = wine_driver.get("ok", False)
     nodrv_detected = "nodrv_CreateWindow" in wine_driver.get("stderr", "")
-    
+
     status = "ok"
     if not x11.get("ok") or not driver_ok or len(xvfb_pids) == 0:
         status = "error"
@@ -107,6 +119,7 @@ def health_system():
     info.update(meminfo_summary())
     return info
 
+
 @router.get("/x11")
 async def health_x11():
     """X11 health details."""
@@ -120,8 +133,12 @@ async def health_x11():
         "xdpyinfo_error": x11.get("error") or x11.get("stderr"),
         "window_manager": {"name": "openbox", "running": len(wm_pids) > 0},
         "active_window": active.get("stdout") if active.get("ok") else None,
-        "active_window_error": None if active.get("ok") else (active.get("error") or active.get("stderr")),
+        "active_window_error": (
+            None if active.get("ok")
+            else (active.get("error") or active.get("stderr"))
+        ),
     }
+
 
 @router.get("/windows")
 async def health_windows():
@@ -138,8 +155,12 @@ async def health_windows():
         "count": len(windows),
         "windows": windows,
         "active_window": active.get("stdout") if active.get("ok") else None,
-        "error": None if listing.get("ok") else (listing.get("error") or listing.get("stderr")),
+        "error": (
+            None if listing.get("ok")
+            else (listing.get("error") or listing.get("stderr"))
+        ),
     }
+
 
 @router.get("/wine")
 def health_wine():
@@ -160,18 +181,28 @@ def health_wine():
         "system_reg_exists": system_reg_exists,
         "prefix_owner_uid": owner_uid,
         "current_uid": os.getuid(),
-        "wine_version": wine_version.get("stdout") if wine_version.get("ok") else None,
-        "wine_version_error": None if wine_version.get("ok") else (wine_version.get("error") or wine_version.get("stderr")),
+        "wine_version": (
+            wine_version.get("stdout") if wine_version.get("ok") else None
+        ),
+        "wine_version_error": (
+            None if wine_version.get("ok")
+            else (wine_version.get("error") or wine_version.get("stderr"))
+        ),
         "winearch": os.getenv("WINEARCH"),
     }
+
 
 @router.get("/tools")
 def health_tools():
     """Presence and paths of key tooling."""
-    tools = ["winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb", "x11vnc", "websockify", "xinput"]
+    tools = [
+        "winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb",
+        "x11vnc", "websockify", "xinput"
+    ]
     details = {name: check_binary(name) for name in tools}
     missing = [name for name, info in details.items() if not info["present"]]
     return {"ok": len(missing) == 0, "missing": missing, "tools": details}
+
 
 @router.get("/storage")
 def health_storage():
@@ -180,6 +211,7 @@ def health_storage():
     details = [statvfs_info(p) for p in paths]
     ok = all(d.get("ok") and d.get("writable", False) for d in details)
     return {"ok": ok, "paths": details}
+
 
 @router.get("/recording")
 async def health_recording():
@@ -191,7 +223,9 @@ async def health_recording():
     return {
         "enabled": enabled,
         "session_dir": session_dir,
-        "session_dir_exists": os.path.isdir(session_dir) if session_dir else False,
+        "session_dir_exists": (
+            os.path.isdir(session_dir) if session_dir else False
+        ),
         "recorder_running": len(recorder_pids) > 0,
         "recorder_pids": [str(p) for p in recorder_pids],
         "state": status["state"],

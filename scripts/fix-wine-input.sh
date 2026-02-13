@@ -26,6 +26,6 @@ echo "Restarting Wine..."
 # Wait for restart
 sleep 2
 SCREEN="${SCREEN:-1920x1080x24}"
-wine explorer /desktop=Default,${SCREEN%x*} >/dev/null 2>&1 &
+wine explorer /desktop=Default,"${SCREEN%x*}" >/dev/null 2>&1 &
 sleep 2
 echo "Wine restarted with new input settings."

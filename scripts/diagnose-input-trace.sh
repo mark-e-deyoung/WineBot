@@ -902,7 +902,7 @@ start_x11_core_trace() {
     log "X11 core trace: xinput not found"
     return
   fi
-  local pointer_id keyboard_id pointer_xtest_id keyboard_xtest_id
+  local pointer_id keyboard_id
   local xlist
   xlist="$(xinput --list --short 2>/dev/null || true)"
   pointer_id="$(printf '%s\n' "$xlist" | awk '/Virtual core XTEST pointer/ {for (i=1;i<=NF;i++) if ($i ~ /^id=/) {sub("id=","",$i); print $i; exit}}')"

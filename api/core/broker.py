@@ -1,11 +1,14 @@
 import asyncio
 import time
-from enum import Enum
-from typing import Optional
-from pydantic import BaseModel
 from fastapi import HTTPException
 
-from api.core.models import ControlMode, UserIntent, AgentStatus, ControlState, GrantControlModel, UserIntentModel
+from api.core.models import (
+    ControlMode,
+    UserIntent,
+    AgentStatus,
+    ControlState
+)
+
 
 class InputBroker:
     def __init__(self):
@@ -71,7 +74,7 @@ class InputBroker:
         """Returns True if agent is allowed to execute."""
         if not self.state.interactive:
             return True
-        
+
         async with self._lock:
             if self.state.control_mode != ControlMode.AGENT:
                 return False
@@ -85,6 +88,7 @@ class InputBroker:
 
     def get_state(self) -> ControlState:
         return self.state
+
 
 # Global singleton
 broker = InputBroker()

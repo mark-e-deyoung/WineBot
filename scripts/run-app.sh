@@ -228,7 +228,7 @@ resolve_app_exe() {
     host_path="$repo_root/apps/${input#/apps/}"
   elif [[ "$input" == "$repo_root/apps/"* ]]; then
     host_path="$input"
-    container_path="/apps/${input#$repo_root/apps/}"
+    container_path="/apps/${input#"$repo_root"/apps/}"
   elif [[ "$input" == ./apps/* ]]; then
     host_path="$repo_root/${input#./}"
     container_path="/${input#./}"

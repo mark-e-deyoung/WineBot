@@ -14,6 +14,7 @@ router = APIRouter(prefix="/recording", tags=["recording"])
 
 DEFAULT_SESSION_ROOT = "/artifacts/sessions"
 
+
 def parse_resolution(screen: str) -> str:
     if not screen:
         return "1920x1080"
@@ -21,6 +22,7 @@ def parse_resolution(screen: str) -> str:
     if len(parts) >= 2:
         return f"{parts[0]}x{parts[1]}"
     return screen
+
 
 def generate_session_id(label: Optional[str]) -> str:
     ts = int(time.time())
@@ -34,11 +36,16 @@ def generate_session_id(label: Optional[str]) -> str:
             session_id = f"{session_id}-{safe}"
     return session_id
 
+
 @router.post("/start")
-async def start_recording(data: Optional[RecordingStartModel] = Body(default=None)):
+async def start_recording(
+    data: Optional[RecordingStartModel] = Body(default=None)
+):
     """Start a recording session."""
     if os.getenv("WINEBOT_RECORD", "0") != "1":
-        raise HTTPException(status_code=400, detail="Recording is disabled by configuration.")
+        raise HTTPException(
+            status_code=400, detail="Recording is disabled by configuration."
+        )
 
     async with recorder_lock:
         if data is None:
@@ -46,21 +53,32 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
         current_session = read_session_dir()
         if recorder_running(current_session):
             if recorder_state(current_session) == RecorderState.PAUSED.value:
-                cmd = ["python3", "-m", "automation.recorder", "resume", "--session-dir", current_session]
+                cmd = [
+                    "python3", "-m", "automation.recorder", "resume",
+                    "--session-dir", current_session
+                ]
                 result = await run_async_command(cmd)
                 if not result["ok"]:
-                    raise HTTPException(status_code=500, detail=(result["stderr"] or "Failed to resume recorder"))
+                    raise HTTPException(
+                        status_code=500,
+                        detail=(result["stderr"] or "Failed to resume recorder")
+                    )
                 return {"status": "resumed", "session_dir": current_session}
-            return {"status": "already_recording", "session_dir": current_session}
+            return {
+                "status": "already_recording", "session_dir": current_session
+            }
 
         session_dir = None
-        if not data.new_session and current_session and os.path.isdir(current_session):
+        if (not data.new_session and current_session and
+                os.path.isdir(current_session)):
             session_json = os.path.join(current_session, "session.json")
             if os.path.exists(session_json):
                 session_dir = current_session
 
         if session_dir is None:
-            session_root = data.session_root or os.getenv("WINEBOT_SESSION_ROOT", DEFAULT_SESSION_ROOT)
+            session_root = data.session_root or os.getenv(
+                "WINEBOT_SESSION_ROOT", DEFAULT_SESSION_ROOT
+            )
             os.makedirs(session_root, exist_ok=True)
             session_id = generate_session_id(data.session_label)
             session_dir = os.path.join(session_root, session_id)
@@ -79,7 +97,9 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
         segment = next_segment_index(session_dir)
         segment_suffix = f"{segment:03d}"
         output_file = os.path.join(session_dir, f"video_{segment_suffix}.mkv")
-        events_file = os.path.join(session_dir, f"events_{segment_suffix}.jsonl")
+        events_file = os.path.join(
+            session_dir, f"events_{segment_suffix}.jsonl"
+        )
 
         cmd = [
             "python3", "-m", "automation.recorder", "start",
@@ -113,11 +133,14 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
             "recorder_pid": pid,
         }
 
+
 @router.post("/stop")
 async def stop_recording_endpoint():
     """Stop the active recording session."""
     if os.getenv("WINEBOT_RECORD", "0") != "1":
-        raise HTTPException(status_code=400, detail="Recording is disabled by configuration.")
+        raise HTTPException(
+            status_code=400, detail="Recording is disabled by configuration."
+        )
 
     async with recorder_lock:
         session_dir = read_session_dir()
@@ -128,10 +151,16 @@ async def stop_recording_endpoint():
             return {"status": "already_stopped", "session_dir": session_dir}
 
         write_recorder_state(session_dir, RecorderState.STOPPING.value)
-        cmd = ["python3", "-m", "automation.recorder", "stop", "--session-dir", session_dir]
+        cmd = [
+            "python3", "-m", "automation.recorder", "stop",
+            "--session-dir", session_dir
+        ]
         result = await run_async_command(cmd)
         if not result["ok"]:
-            raise HTTPException(status_code=500, detail=(result["stderr"] or "Failed to stop recorder"))
+            raise HTTPException(
+                status_code=500,
+                detail=(result["stderr"] or "Failed to stop recorder")
+            )
 
         for _ in range(10):
             if not recorder_running(session_dir):
@@ -141,11 +170,14 @@ async def stop_recording_endpoint():
 
         return {"status": "stopped", "session_dir": session_dir}
 
+
 @router.post("/pause")
 async def pause_recording():
     """Pause the active recording session."""
     if os.getenv("WINEBOT_RECORD", "0") != "1":
-        raise HTTPException(status_code=400, detail="Recording is disabled by configuration.")
+        raise HTTPException(
+            status_code=400, detail="Recording is disabled by configuration."
+        )
 
     async with recorder_lock:
         session_dir = read_session_dir()
@@ -155,28 +187,46 @@ async def pause_recording():
             return {"status": "already_paused", "session_dir": session_dir}
         if recorder_state(session_dir) == RecorderState.PAUSED.value:
             return {"status": "already_paused", "session_dir": session_dir}
-        cmd = ["python3", "-m", "automation.recorder", "pause", "--session-dir", session_dir]
+        cmd = [
+            "python3", "-m", "automation.recorder", "pause",
+            "--session-dir", session_dir
+        ]
         result = await run_async_command(cmd)
         if not result["ok"]:
-            raise HTTPException(status_code=500, detail=(result["stderr"] or "Failed to pause recorder"))
+            raise HTTPException(
+                status_code=500,
+                detail=(result["stderr"] or "Failed to pause recorder")
+            )
         return {"status": "paused", "session_dir": session_dir}
+
 
 @router.post("/resume")
 async def resume_recording():
     """Resume the active recording session."""
     if os.getenv("WINEBOT_RECORD", "0") != "1":
-        raise HTTPException(status_code=400, detail="Recording is disabled by configuration.")
+        raise HTTPException(
+            status_code=400, detail="Recording is disabled by configuration."
+        )
 
     async with recorder_lock:
         session_dir = read_session_dir()
         if not session_dir:
             return {"status": RecorderState.IDLE.value}
         if not recorder_running(session_dir):
-            return {"status": RecorderState.IDLE.value, "session_dir": session_dir}
+            return {
+                "status": RecorderState.IDLE.value,
+                "session_dir": session_dir
+            }
         if recorder_state(session_dir) != RecorderState.PAUSED.value:
             return {"status": "already_recording", "session_dir": session_dir}
-        cmd = ["python3", "-m", "automation.recorder", "resume", "--session-dir", session_dir]
+        cmd = [
+            "python3", "-m", "automation.recorder", "resume",
+            "--session-dir", session_dir
+        ]
         result = await run_async_command(cmd)
         if not result["ok"]:
-            raise HTTPException(status_code=500, detail=(result["stderr"] or "Failed to resume recorder"))
+            raise HTTPException(
+                status_code=500,
+                detail=(result["stderr"] or "Failed to resume recorder")
+            )
         return {"status": "resumed", "session_dir": session_dir}

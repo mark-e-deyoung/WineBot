@@ -185,7 +185,7 @@ if [ "$skip_base_checks" != "1" ]; then
 
   log "Checking window list..."
   window_list="$(compose_exec headless winebot "DISPLAY=:99 wmctrl -l")"
-  window_count="$(echo "$window_list" | grep -v "^$" | wc -l)"
+  window_count="$(echo "$window_list" | grep -c -v "^$")"
   window_count="$(echo "$window_count" | tr -d ' ')"
   log "Found $window_count window(s):"
   log "$window_list"
