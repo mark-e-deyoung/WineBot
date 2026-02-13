@@ -44,6 +44,13 @@ jobs:
         run: |
           scripts/smoke-test.sh --phase health --skip-base-checks --no-build --cleanup
 
+      - name: Reclaim disk space before static validations
+        run: |
+          docker system df || true
+          docker image prune -af || true
+          docker builder prune -af || true
+          docker system df || true
+
       - name: Validate REL forbidden patterns
         run: |
           scripts/ci/check-rel-forbidden.sh
