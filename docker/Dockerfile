@@ -1,5 +1,5 @@
 # Pinned to debian:trixie-slim as of 2026-02-08
-ARG BASE_IMAGE=debian@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
+ARG BASE_IMAGE=ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-13
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_REPO="https://github.com/mark-e-deyoung/WineBot"

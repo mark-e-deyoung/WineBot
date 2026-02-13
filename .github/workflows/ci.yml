@@ -27,7 +27,7 @@ jobs:
           file: docker/Dockerfile
           target: intent-test
           build-args: |
-            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09' }}
+            BASE_IMAGE=${{ vars.WINEBOT_BASE_IMAGE || 'ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-13' }}
             BUILD_INTENT=test
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.run_id }}
