@@ -58,10 +58,10 @@ jobs:
             echo "Waiting for API..."
             sleep 2
           done
-          
+
           # Run the soak diagnostic script inside the container
-          docker compose -f compose/docker-compose.yml exec -T --user winebot winebot-interactive 
-            /scripts/diagnose-trace-soak.sh
+          docker compose -f compose/docker-compose.yml exec -T --user winebot \
+            winebot-interactive /scripts/diagnose-trace-soak.sh
 
       - name: Collect diagnostics on failure
         if: failure()
