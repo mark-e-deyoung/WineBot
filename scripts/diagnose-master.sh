@@ -89,10 +89,22 @@ if [[ "$PHASE" == "all" || "$PHASE" == "smoke" ]]; then
         sleep 1
     done
     # Run the existing smoke tests which cover AHK, AutoIt, winpy, etc.
-    if /tests/run_smoke_tests.sh; then
-        log "Smoke tests: PASSED"
+    log "Checking for smoke test script at /tests/run_smoke_tests.sh..."
+    ls -la / > /tmp/root_ls.log 2>&1 || true
+    cat /tmp/root_ls.log | while read -r line; do log "LS_ROOT: $line"; done
+    mount > /tmp/mount.log 2>&1 || true
+    cat /tmp/mount.log | while read -r line; do log "MOUNT: $line"; done
+    
+    ls -l /tests/run_smoke_tests.sh || log "ERROR: Script NOT found via ls"
+    if [ -x "/tests/run_smoke_tests.sh" ]; then
+        if /tests/run_smoke_tests.sh; then
+            log "Smoke tests: PASSED"
+        else
+            log "Smoke tests: FAILED"
+            exit 1
+        fi
     else
-        log "Smoke tests: FAILED"
+        log "ERROR: /tests/run_smoke_tests.sh not found or not executable"
         exit 1
     fi
 fi

@@ -66,6 +66,10 @@ done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
 compose_file="$repo_root/compose/docker-compose.yml"
+export BUILD_INTENT="${BUILD_INTENT:-rel}"
+if [ "$BUILD_INTENT" = "test" ]; then
+    export WINEBOT_IMAGE_VERSION="${WINEBOT_IMAGE_VERSION:-verify-test-final}"
+fi
 
 if docker compose version >/dev/null 2>&1; then
   compose_cmd=(docker compose)
@@ -101,7 +105,7 @@ compose_up() {
   # Docker Compose v1 sometimes fails with ContainerConfig errors if stale containers exist.
   # Proactively clear any leftovers before starting.
   "${compose_cmd[@]}" -f "$compose_file" down --remove-orphans >/dev/null 2>&1 || true
-  local args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up -d)
+  local args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up -d --force-recreate)
   if [ "$build" = "1" ]; then
     args+=(--build)
   fi
