@@ -2054,7 +2054,15 @@
       badgeVnc.textContent = "connecting...";
       console.log("Initializing VNC connection...");
       try {
-        const mod = await import("./core/rfb.js");
+        let mod;
+        try {
+            mod = await import("./core/rfb.js");
+        } catch (e) {
+            console.error("Failed to import rfb.js:", e);
+            setBadge(badgeVnc, "client missing", "error");
+            logMessage("error", "Failed to load VNC client (rfb.js).");
+            return;
+        }
         console.log("rfb.js module loaded successfully.");
         resetVncCanvas();
         
@@ -2188,6 +2196,7 @@
           enterBackoff("vnc", "Live session disconnected", "noVNC connection lost. Waiting for the live session to reconnect.");
         });
         rfbInstance.addEventListener("credentialsrequired", () => {
+          clearTimeout(connectionTimeout);
           const password = getVncPassword();
           vncNeedsCredentials = true;
           if (password) {
