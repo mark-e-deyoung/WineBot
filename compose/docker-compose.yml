@@ -33,6 +33,7 @@ x-winebot-env: &winebot_env
   BUILD_INTENT: ${BUILD_INTENT:-rel}
   WINEBOT_SUPPORT_MODE: ${WINEBOT_SUPPORT_MODE:-0}
   WINEBOT_SUPPORT_MODE_MINUTES: ${WINEBOT_SUPPORT_MODE_MINUTES:-60}
+  WINEDEBUG: ${WINEDEBUG:-}
 
 x-winebot-base: &winebot_base
   build:

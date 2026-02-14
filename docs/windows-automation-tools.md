@@ -33,6 +33,12 @@ winpy my_script.py
 ```
 Note: This is separate from the container's native Linux Python (`python3`). Use `winpy` when you need Windows-specific modules.
 
+**Note on pip:** To minimize build time and image size, `pip` is not pre-installed in the `winpy` environment. `winpy` is intended for lightweight diagnostics and tracers using `ctypes` and the standard library. If you require `pip` at runtime, you can install it using:
+```bash
+curl -sL -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+winpy /tmp/get-pip.py
+```
+
 ## Wine UIA Status
 
 Wine in this project currently runs as `wine-10.0 (Debian 10.0~repack-6)`.

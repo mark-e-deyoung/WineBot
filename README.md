@@ -208,6 +208,7 @@ See [docs/debugging.md](docs/debugging.md) for details.
 ## Performance & Reliability
 
 Best practices and a low-resource compose override are documented in [docs/performance.md](docs/performance.md).
+A detailed [Build Performance & Resource Utilization Report](docs/build-performance-and-resource-utilization.md) is also available.
 
 ## Run the sample CV automation
 

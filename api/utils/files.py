@@ -11,7 +11,7 @@ from api.utils.process import pid_running
 
 SESSION_FILE = "/tmp/winebot_current_session"
 DEFAULT_SESSION_ROOT = "/artifacts/sessions"
-ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts"]
+ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts", "/opt/winebot", "/usr/bin"]
 
 def validate_path(path: str):
     """Ensure path is within allowed directories to prevent traversal."""

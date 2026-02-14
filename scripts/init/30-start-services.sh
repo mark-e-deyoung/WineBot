@@ -48,10 +48,16 @@ if [ "${WINEBOT_SUPERVISE_EXPLORER:-1}" = "1" ]; then
     # Settle time
     sleep 2
     (
+      # Reduce noise for the supervisor's wine calls
+      export WINEDEBUG="-all"
       while true; do
         if ! pgrep -f "explorer.exe" > /dev/null; then
-            sleep 1
+            # Small delay before restart to avoid tight crash loops
+            sleep 2
             if ! pgrep -f "explorer.exe" > /dev/null; then
+                if [ "${WINEBOT_LOG_LEVEL:-}" = "DEBUG" ]; then
+                    echo "--> Supervisor: Restarting explorer.exe"
+                fi
                 if command -v setsid >/dev/null 2>&1; then
                     setsid wine explorer.exe >"$SESSION_DIR/logs/explorer.log" 2>&1 &
                 else
@@ -66,7 +72,7 @@ if [ "${WINEBOT_SUPERVISE_EXPLORER:-1}" = "1" ]; then
              rm -f /tmp/wineserver_missing_logged
         fi
 
-        # Ensure windows are managed
+        # Ensure windows are managed (silent)
         for title in "Desktop" "Wine Desktop"; do
           if xdotool search --name "$title" >/dev/null 2>&1; then
             wmctrl -r "$title" -b remove,undecorated >/dev/null 2>&1 || true

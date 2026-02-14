@@ -81,8 +81,25 @@ if [ "${DEBUG:-0}" = "1" ]; then
     (winpy -c "import sys; print(sys.version)" | head -n 1) || true
 fi
 
-# Keep container alive
+# Keep container alive or run app
 if [ $# -eq 0 ]; then
+    if [ -n "${APP_EXE:-}" ]; then
+        echo "--> Launching application: ${APP_EXE} ${APP_ARGS:-}"
+        # We use 'wine' explicitly if it looks like a Windows path or exe
+        if [[ "$APP_EXE" == *.exe ]] || [[ "$APP_EXE" == *.bat ]] || [[ "$APP_EXE" == *.msi ]] || [[ "$APP_EXE" == *\\* ]]; then
+            # Run wine and capture exit code
+            # We don't use 'exec' here because we might want to keep the container alive
+            # or handle cleanup. But for CLI apps, we usually want the container to exit when the app exits.
+            wine "$APP_EXE" ${APP_ARGS:-}
+            EXIT_CODE=$?
+            exit $EXIT_CODE
+        else
+            # Native command
+            "$APP_EXE" ${APP_ARGS:-}
+            EXIT_CODE=$?
+            exit $EXIT_CODE
+        fi
+    fi
     tail -f /dev/null
 else
     "$@"

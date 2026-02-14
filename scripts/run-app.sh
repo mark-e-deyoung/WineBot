@@ -22,6 +22,7 @@ Options:
   --winedbg-script PATH        Run winedbg commands from a file (default mode only).
   --record                     Enable session recording.
   --view [novnc|vnc|auto]      Auto-open viewer (forces --mode interactive, implies --detach).
+  --quiet, -q                  Suppress Wine debug logs (WINEDEBUG=-all).
   --novnc-url URL              Override dashboard/noVNC URL (default: http://localhost:8000/ui).
   --novnc-password PASS        noVNC password (optional; enables auto-connect without prompts).
   --no-password-url            Do not embed the password in the URL.
@@ -75,6 +76,7 @@ vnc_password=""
 vnc_password_set="0"
 view_timeout="30"
 vnc_viewer=""
+quiet="0"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -84,6 +86,9 @@ while [ $# -gt 0 ]; do
       ;;
     --record)
       record="1"
+      ;;
+    --quiet|-q)
+      quiet="1"
       ;;
     --headless)
       mode="headless"
@@ -310,6 +315,9 @@ fi
 if [ "$record" = "1" ]; then
   env_vars+=(WINEBOT_RECORD="1")
 fi
+if [ "$quiet" = "1" ] || [ "$direct_cli" = "1" ]; then
+  env_vars+=(WINEDEBUG="-all")
+fi
 
 compose_args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up --force-recreate)
 if [ "$build" = "1" ]; then
@@ -365,12 +373,30 @@ if [ "$direct_cli" = "1" ]; then
   fi
 
   run_output="$("$repo_root/scripts/winebotctl" "${run_args[@]}")"
-  if parsed_stdout="$(printf '%s' "$run_output" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("stdout", ""), end="")' 2>/dev/null)"; then
-    printf '%s' "$parsed_stdout"
-    exit 0
+  # Try to parse as JSON to show stdout/stderr separately
+  set +e
+  python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin)
+    out=d.get("stdout", "")
+    err=d.get("stderr", "")
+    if out: sys.stdout.write(out)
+    if out and not out.endswith("\n") and err: sys.stdout.write("\n")
+    if err: sys.stderr.write(err)
+    if d.get("status") == "failed": sys.exit(1)
+except Exception:
+    sys.exit(2)
+' <<EOF
+$run_output
+EOF
+  ret=$?
+  set -e
+  if [ $ret -eq 2 ]; then
+    # Not JSON or failed to parse, just print raw
+    printf '%s\n' "$run_output"
   fi
-  printf '%s\n' "$run_output"
-  exit 0
+  exit $ret
 fi
 
 if [ -n "$view_mode" ]; then

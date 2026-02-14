@@ -57,13 +57,6 @@ COPY --from=tools-builder /opt/winebot/windows-tools /opt/winebot/windows-tools
 COPY windows-tools/wrappers/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy
 
-# Bootstrap pip for Windows Python (using a temp prefix to avoid image bloat)
-RUN mkdir -p /tmp/wine-bootstrap \
-    && curl -sL -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py \
-    && WINEPREFIX=/tmp/wine-bootstrap wine /opt/winebot/windows-tools/Python/python.exe /tmp/get-pip.py --no-warn-script-location \
-    && WINEPREFIX=/tmp/wine-bootstrap wine /opt/winebot/windows-tools/Python/python.exe -m pip install --upgrade pip setuptools wheel \
-    && rm -rf /tmp/get-pip.py /tmp/wine-bootstrap
-
 # Install runtime Python dependencies (Linux)
 COPY requirements-rel.txt /tmp/requirements-rel.txt
 RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-rel.txt \
