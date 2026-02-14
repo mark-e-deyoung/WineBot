@@ -612,7 +612,11 @@
           </div>
           <div class="config-block">
             <div class="config-title">VNC Access</div>
-            <label for="vnc-password">VNC Password</label>
+            <label for="vnc-host">VNC Host (optional)</label>
+            <input id="vnc-host" type="text" placeholder="localhost" />
+            <label for="vnc-port" style="margin-top: 8px;">VNC Port (optional)</label>
+            <input id="vnc-port" type="text" placeholder="6080" />
+            <label for="vnc-password" style="margin-top: 8px;">VNC Password</label>
             <input id="vnc-password" type="password" placeholder="VNC password" />
             <div class="button-row" style="margin-top: 10px;">
               <button id="save-vnc" class="secondary">Save Password</button>
@@ -1806,8 +1810,12 @@
 
     function initTokenControls() {
       tokenInput.value = getToken();
+      tokenInput.addEventListener("input", () => {
+        setToken(tokenInput.value.trim());
+      });
       saveTokenBtn.addEventListener("click", () => {
         setToken(tokenInput.value.trim());
+        logMessage("info", "API Token saved.");
         updateDashboard();
       });
       clearTokenBtn.addEventListener("click", () => {
@@ -1818,9 +1826,19 @@
     }
 
     function initVncControls() {
+      vncHostInput.value = getVncHost();
+      vncHostInput.addEventListener("input", () => setVncHost(vncHostInput.value.trim()));
+      vncPortInput.value = getVncPort();
+      vncPortInput.addEventListener("input", () => setVncPort(vncPortInput.value.trim()));
       vncPasswordInput.value = getVncPassword();
-      saveVncBtn.addEventListener("click", () => {
+      vncPasswordInput.addEventListener("input", () => {
         setVncPassword(vncPasswordInput.value);
+      });
+      saveVncBtn.addEventListener("click", () => {
+        setVncHost(vncHostInput.value.trim());
+        setVncPort(vncPortInput.value.trim());
+        setVncPassword(vncPasswordInput.value);
+        logMessage("info", "VNC Settings saved.");
         if (vncNeedsCredentials && rfbInstance) {
           const password = getVncPassword();
           if (password) {
@@ -1833,7 +1851,11 @@
         restartVnc();
       });
       clearVncBtn.addEventListener("click", () => {
+        vncHostInput.value = "";
+        vncPortInput.value = "";
         vncPasswordInput.value = "";
+        setVncHost("");
+        setVncPort("");
         setVncPassword("");
         vncNeedsCredentials = false;
       });
@@ -1949,7 +1971,7 @@
           return;
         }
         const titleText = title.textContent.trim().toLowerCase();
-        const key = `winebot_panel_${titleText.replace(/\\s+/g, "_")}`;
+        const key = `winebot_panel_${titleText.replace(/\s+/g, "_")}`;
         const saved = localStorage.getItem(key);
         const shouldForceCollapse = forcedCollapsed.has(titleText);
         if (shouldForceCollapse || saved === "collapsed") {
@@ -2001,10 +2023,29 @@
 
     async function initVnc() {
       badgeVnc.textContent = "connecting...";
+      console.log("Initializing VNC connection...");
       try {
         const mod = await import("./core/rfb.js");
+        console.log("rfb.js module loaded successfully.");
         resetVncCanvas();
-        rfbInstance = new mod.default(vncContainer, "ws://localhost:6080");
+        
+        // Dynamic host and port detection
+        let vncHost = getVncHost() || window.location.hostname;
+        let vncPort = getVncPort();
+        
+        if (!vncPort) {
+            vncPort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+            // If we are on port 8000 (API), we assume noVNC is on 6080 (standard mapping)
+            if (vncPort === "8000") {
+                vncPort = "6080";
+            }
+        }
+        
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${protocol}://${vncHost}:${vncPort}/`;
+        console.log(`Attempting to connect to VNC at: ${wsUrl}`);
+        
+        rfbInstance = new mod.default(vncContainer, wsUrl);
         rfbInstance.viewOnly = vncViewOnlyToggle.checked;
         rfbInstance.scaleViewport = vncScaleToggle.checked;
         rfbInstance.resizeSession = false;
@@ -2118,6 +2159,8 @@
           }
         });
       } catch (err) {
+        console.error("VNC Initialization Error:", err);
+        logMessage("error", `VNC Load Error: ${err.message}`);
         setBadge(badgeVnc, "noVNC load failed", "error");
       }
     }

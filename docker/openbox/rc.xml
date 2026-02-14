@@ -99,17 +99,17 @@
     </keybind>
     <keybind key="Print">
       <action name="Execute">
-        <command>/automation/screenshot.sh</command>
+        <command>/automation/bin/screenshot.sh</command>
       </action>
     </keybind>
     <keybind key="C-A-R">
       <action name="Execute">
-        <command>/scripts/openbox-control.sh reconfigure</command>
+        <command>/scripts/internal/openbox-control.sh reconfigure</command>
       </action>
     </keybind>
     <keybind key="C-A-S-R">
       <action name="Execute">
-        <command>/scripts/openbox-control.sh restart</command>
+        <command>/scripts/internal/openbox-control.sh restart</command>
       </action>
     </keybind>
   </keyboard>

@@ -23,8 +23,13 @@ WineBot is a containerized Windows application runtime (Wine 10.0) with an X11 d
 | `api/routers/*.py` | API endpoints by category. | `/health`, `/input`, `/recording` |
 | `docker/entrypoint.sh` | Container boot logic. Handles Xvfb, Openbox, Wine init. | `Xvfb`, `wineserver`, `tint2` |
 | `docker/openbox/rc.xml` | Window Manager config. Controls input focus/decorations. | `<applications>`, `<mouse>` |
-| `scripts/diagnose-master.sh` | End-to-end system validation suite. | `Environment Health`, `Trace Verification` |
+| `scripts/bin/` | Primary user-facing tools (`winebotctl`, `run-app.sh`). | |
+| `scripts/diagnostics/` | System validation suite (`diagnose-master.sh`, `health-check.sh`). | `Environment Health` |
+| `scripts/setup/` | Installation and fix logic (`install-theme.sh`, `fix-wine-input.sh`). | |
+| `automation/bin/` | Standalone automation tools (`x11.sh`, `screenshot.sh`). | |
+| `automation/examples/` | Demo and verification scripts (`notepad_create_and_verify.py`). | |
 | `tests/` | Pytest suite. | `test_policy.py`, `test_api.py` |
+| `archive/status/` | Archived project status reports. | |
 
 ## 3. Environment Variables
 
@@ -46,7 +51,7 @@ WineBot is a containerized Windows application runtime (Wine 10.0) with an X11 d
 docker compose -f compose/docker-compose.yml run --rm winebot bash -lc 'PYTHONPATH=/ pytest /tests'
 
 # Full diagnostic suite (Smoke + CV + Trace)
-docker compose -f compose/docker-compose.yml run --rm winebot /scripts/diagnose-master.sh
+docker compose -f compose/docker-compose.yml run --rm winebot /scripts/diagnostics/diagnose-master.sh
 ```
 
 ### How to apply config changes?

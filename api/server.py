@@ -15,6 +15,7 @@ from api.routers import (
 )
 from api.utils.files import read_session_dir, append_lifecycle_event
 from api.utils.process import process_store
+from api.core.discovery import discovery_manager
 from api.core.versioning import (
     API_VERSION,
     ARTIFACT_SCHEMA_VERSION,
@@ -51,6 +52,14 @@ async def lifespan(app: FastAPI):
         session_dir, "api_started", "API server started", source="api"
     )
 
+    # Start Discovery
+    try:
+        discovery_manager.start()
+    except Exception as e:
+        # We don't want to crash the whole API if discovery fails, unless it's a singleton conflict
+        # DiscoveryManager.start() raises SystemExit for singleton conflict
+        print(f"--> Discovery initialization failed: {e}")
+
     # Start background monitor
     monitor = asyncio.create_task(resource_monitor_task())
 
@@ -58,6 +67,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         monitor.cancel()
+        discovery_manager.stop()
         session_dir = read_session_dir()
         append_lifecycle_event(
             session_dir, "api_stopped", "API server stopping", source="api"
@@ -130,6 +140,11 @@ def get_version():
 
 
 @app.get("/ui")
+def dashboard_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/ui/")
+
+
 @app.get("/ui/")
 def dashboard():
     UI_DIR = os.path.join(os.path.dirname(__file__), "ui")

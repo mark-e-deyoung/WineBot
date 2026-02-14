@@ -44,21 +44,21 @@ echo "AutoHotkey test complete."
 
 # 3. X11 Helpers
 echo "Testing X11 helpers..."
-/automation/x11.sh list-windows
-active_id=$(/automation/x11.sh active-window)
+/automation/bin/x11.sh list-windows
+active_id=$(/automation/bin/x11.sh active-window)
 echo "Active window ID: $active_id"
 # Only try getting title if we have a valid ID
 if [[ "$active_id" != "No active window" ]]; then
-    /automation/x11.sh window-title "$active_id" || echo "Warning: Could not get title (window likely closed)"
+    /automation/bin/x11.sh window-title "$active_id" || echo "Warning: Could not get title (window likely closed)"
 fi
-/automation/x11.sh search --name ".*"
+/automation/bin/x11.sh search --name ".*"
 take_screenshot "x11_helper"
 echo "X11 helpers test complete."
 
 # 4. AHK execution via winebotctl
 echo "Testing AHK execution via winebotctl..."
 # Use existing test script and focus syntax (even if target missing)
-/scripts/winebotctl run ahk --file tests/test_ahk.ahk --focus-title "Shell_TrayWnd" > /tmp/run_ahk_test.log
+/scripts/bin/winebotctl run ahk --file tests/test_ahk.ahk --focus-title "Shell_TrayWnd" > /tmp/run_ahk_test.log
 if [ -f /tmp/run_ahk_test.log ]; then
     echo "winebotctl ahk output captured."
     cat /tmp/run_ahk_test.log
@@ -70,7 +70,7 @@ echo "winebotctl ahk test complete."
 
 # 5. Inspectors (Installation & Launch)
 echo "Testing Inspectors..."
-/scripts/install-inspectors.sh
+/scripts/setup/install-inspectors.sh
 
 # Helper to test background launch
 test_launch() {
@@ -89,7 +89,7 @@ test_launch() {
     fi
 }
 
-test_launch "/scripts/au3info.sh" "Au3Info"
+test_launch "/scripts/internal/au3info.sh" "Au3Info"
 test_launch "wine /opt/winebot/windows-tools/WinSpy/winspy.exe" "WinSpy"
 
 echo "Inspector tests complete."
@@ -113,7 +113,7 @@ echo "winpy test complete."
 # 7. Screenshot Directory Argument
 echo "Testing screenshot directory arg..."
 mkdir -p /tmp/screenshots_test_dir
-/automation/screenshot.sh /tmp/screenshots_test_dir
+/automation/bin/screenshot.sh /tmp/screenshots_test_dir
 if ls /tmp/screenshots_test_dir/screenshot_*.png >/dev/null 2>&1; then
     echo "Screenshot saved to directory."
 else
@@ -125,7 +125,7 @@ echo "Screenshot directory test complete."
 # 8. Advanced Screenshot Features
 echo "Testing screenshot flags (--label, --delay)..."
 adv_shot="/tmp/screenshot_advanced.png"
-/automation/screenshot.sh --window root --delay 1 --label "SmokeTest" "$adv_shot"
+/automation/bin/screenshot.sh --window root --delay 1 --label "SmokeTest" "$adv_shot"
 if [ -f "$adv_shot" ]; then
     echo "Advanced screenshot created."
 else
@@ -135,7 +135,7 @@ fi
 echo "Advanced screenshot test complete."
 
 # Required single smoke evidence file
-/automation/screenshot.sh --window root --delay 1 --label "WindowsAutomationSmoke" /tmp/smoke_test.png
+/automation/bin/screenshot.sh --window root --delay 1 --label "WindowsAutomationSmoke" /tmp/smoke_test.png
 if [ ! -s /tmp/smoke_test.png ]; then
     echo "Error: /tmp/smoke_test.png missing or empty."
     exit 1

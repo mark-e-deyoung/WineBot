@@ -581,13 +581,13 @@ start_wine_input_observer() {
     log "Wine input observer: winpy not found"
     return
   fi
-  if [ ! -f "/scripts/diagnose-wine-input.py" ]; then
-    log "Wine input observer: /scripts/diagnose-wine-input.py missing"
+  if [ ! -f "/scripts/diagnostics/diagnose-wine-input.py" ]; then
+    log "Wine input observer: /scripts/diagnostics/diagnose-wine-input.py missing"
     return
   fi
   wine_input_observer_log="${LOG_DIR}/wine_input_observer_${diag_ts}.jsonl"
   log "Wine input observer log: ${wine_input_observer_log}"
-  winpy /scripts/diagnose-wine-input.py \
+  winpy /scripts/diagnostics/diagnose-wine-input.py \
     --out "${wine_input_observer_log}" \
     --duration "${WINE_INPUT_OBSERVER_DURATION}" \
     --interval-ms "${WINE_INPUT_OBSERVER_INTERVAL_MS}" \
@@ -652,14 +652,14 @@ start_wine_hook_observer() {
     log "Wine hook observer: winpy not found"
     return
   fi
-  if [ ! -f "/scripts/diagnose-wine-hook.py" ]; then
-    log "Wine hook observer: /scripts/diagnose-wine-hook.py missing"
+  if [ ! -f "/scripts/diagnostics/diagnose-wine-hook.py" ]; then
+    log "Wine hook observer: /scripts/diagnostics/diagnose-wine-hook.py missing"
     return
   fi
   wine_hook_observer_log="${LOG_DIR}/wine_hook_observer_${diag_ts}.jsonl"
   export WINE_HOOK_OBSERVER_LOG="${wine_hook_observer_log}"
   log "Wine hook observer log: ${wine_hook_observer_log}"
-  winpy /scripts/diagnose-wine-hook.py \
+  winpy /scripts/diagnostics/diagnose-wine-hook.py \
     --out "${wine_hook_observer_log}" \
     --duration "${WINE_HOOK_OBSERVER_DURATION}" \
     --sample-ms "${WINE_HOOK_OBSERVER_SAMPLE_MS}" \

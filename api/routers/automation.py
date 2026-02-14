@@ -77,7 +77,7 @@ async def run_app(data: AppRunModel):
 @router.get("/windows")
 async def list_windows():
     """List all windows."""
-    listing = safe_command(["/automation/x11.sh", "list-windows"])
+    listing = safe_command(["/automation/bin/x11.sh", "list-windows"])
     windows = []
     if listing.get("ok") and listing.get("stdout"):
         for line in listing["stdout"].splitlines():
@@ -92,7 +92,7 @@ async def focus_window(data: FocusModel):
     """Focus a window by ID."""
     if not await broker.check_access():
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
-    safe_command(["/automation/x11.sh", "focus-window", data.window_id])
+    safe_command(["/automation/bin/x11.sh", "focus-window", data.window_id])
     return {"status": "focused"}
 
 
@@ -161,7 +161,7 @@ async def take_screenshot(output_dir: Optional[str] = None):
     filename = f"screenshot_{int(time.time())}.png"
     filepath = os.path.join(target_dir, filename)
 
-    safe_command(["/automation/screenshot.sh", filepath])
+    safe_command(["/automation/bin/screenshot.sh", filepath])
 
     if not os.path.exists(filepath):
         raise HTTPException(status_code=500, detail="Screenshot failed")

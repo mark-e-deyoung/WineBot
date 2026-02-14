@@ -17,8 +17,8 @@ log() {
 
 annotate() {
     local msg="$1"
-    if [ -x "/scripts/annotate.sh" ]; then
-        /scripts/annotate.sh --text "$msg" --type "subtitle" || true
+    if [ -x "/scripts/internal/annotate.sh" ]; then
+        /scripts/internal/annotate.sh --text "$msg" --type "subtitle" || true
     fi
 }
 
@@ -30,7 +30,7 @@ sleep 2
 # 1. Bash Suite
 log "Running Bash Diagnostic Suite..."
 annotate "Running Bash Suite"
-/scripts/diagnose-input-suite.sh || log "Bash Suite Failed"
+/scripts/diagnostics/diagnose-input-suite.sh || log "Bash Suite Failed"
 
 # Cleanup
 pkill -f "notepad.exe" || true
@@ -39,8 +39,8 @@ rm -f "/wineprefix/drive_c/ahk_test.txt" "/wineprefix/drive_c/autoit_test.txt"
 # 2. AutoHotkey
 log "Running AutoHotkey Diagnostics..."
 annotate "Running AutoHotkey Suite"
-if [ -x "/scripts/winebotctl" ]; then
-    /scripts/winebotctl run ahk --file /scripts/diagnose-ahk.ahk || log "AHK Script Failed"
+if [ -x "/scripts/bin/winebotctl" ]; then
+    /scripts/bin/winebotctl run ahk --file /scripts/diagnostics/diagnose-ahk.ahk || log "AHK Script Failed"
 else
     log "winebotctl not found"
 fi
@@ -51,8 +51,8 @@ pkill -f "notepad.exe" || true
 # 3. AutoIt
 log "Running AutoIt Diagnostics..."
 annotate "Running AutoIt Suite"
-if [ -x "/scripts/winebotctl" ]; then
-    /scripts/winebotctl run autoit --file /scripts/diagnose-autoit.au3 || log "AutoIt Script Failed"
+if [ -x "/scripts/bin/winebotctl" ]; then
+    /scripts/bin/winebotctl run autoit --file /scripts/diagnostics/diagnose-autoit.au3 || log "AutoIt Script Failed"
 else
     log "winebotctl not found"
 fi

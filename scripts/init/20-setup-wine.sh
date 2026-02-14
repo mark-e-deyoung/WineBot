@@ -38,7 +38,9 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
         VNC_ARGS+=("-nopw")
     fi
     x11vnc "${VNC_ARGS[@]}" > "$SESSION_DIR/logs/x11vnc.log" 2>&1
-    websockify --web /usr/share/novnc/ "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT}" >/dev/null 2>&1 &
+    # We point --web to a dummy dir so it only acts as a proxy, not a file server (API handles UI)
+    mkdir -p /tmp/empty-web
+    websockify --web /tmp/empty-web "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT}" > "$SESSION_DIR/logs/websockify.log" 2>&1 &
 fi
 
 # Wine Prefix
@@ -89,8 +91,8 @@ if [ ! -d "/opt/winebot/prefix-template" ]; then
     run_wine_setup_step "Managed" \
         wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d "Y" /f || true
 
-    if [ -x "/scripts/install-theme.sh" ]; then
-        /scripts/install-theme.sh || echo "WARN: install-theme.sh failed; continuing." >&2
+    if [ -x "/scripts/setup/install-theme.sh" ]; then
+        /scripts/setup/install-theme.sh || echo "WARN: install-theme.sh failed; continuing." >&2
     fi
 fi
 

@@ -172,8 +172,8 @@ wait_for_file() {
 annotate_marker() {
   local session_dir="$1"
   local marker="$2"
-  if [ -x /scripts/annotate.sh ]; then
-    /scripts/annotate.sh --session-dir "$session_dir" --text "$marker" --type subtitle --source recording-smoke-test
+  if [ -x /scripts/internal/annotate.sh ]; then
+    /scripts/internal/annotate.sh --session-dir "$session_dir" --text "$marker" --type subtitle --source recording-smoke-test
   else
     python3 -m automation.recorder annotate --session-dir "$session_dir" --text "$marker" --kind subtitle --source recording-smoke-test
   fi

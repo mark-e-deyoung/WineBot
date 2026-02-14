@@ -6,7 +6,7 @@ if [ "${WINEBOT_INPUT_TRACE_WINDOWS:-0}" = "1" ]; then
     WIN_TRACE_MS="${WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS:-10}"
     # Escape path for Wine (convert / to \)
     WINE_LOG_PATH="Z:${SESSION_DIR//\//\\}\\logs\\input_events_windows.jsonl"
-    ahk /automation/input_trace_windows.ahk "$WINE_LOG_PATH" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
+    ahk /automation/core/input_trace_windows.ahk "$WINE_LOG_PATH" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
 fi
 
 if [ "${WINEBOT_INPUT_TRACE:-0}" = "1" ]; then
@@ -39,7 +39,8 @@ if [ "${ENABLE_API:-0}" = "1" ]; then
     export DISPLAY="${DISPLAY}"
     export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
     export PYTHONPATH="${PYTHONPATH:-}:/"
-    uvicorn api.server:app --host 0.0.0.0 --port 8000 > "$SESSION_DIR/logs/api.log" 2>&1 &
+    API_PORT="${API_PORT:-8000}"
+    uvicorn api.server:app --host 0.0.0.0 --port "$API_PORT" > "$SESSION_DIR/logs/api.log" 2>&1 &
 fi
 
 # Supervisor

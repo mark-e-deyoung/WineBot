@@ -58,7 +58,7 @@ COPY windows-tools/wrappers/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy
 
 # Install runtime Python dependencies (Linux)
-COPY requirements-rel.txt /tmp/requirements-rel.txt
+COPY requirements/requirements-rel.txt /tmp/requirements-rel.txt
 RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-rel.txt \
     && rm /tmp/requirements-rel.txt
 
@@ -66,13 +66,13 @@ RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /t
 FROM base-core AS prefix-warmer
 USER winebot
 ENV WINEPREFIX=/opt/winebot/prefix-template
-COPY --chown=winebot:winebot scripts/install-theme.sh /scripts/install-theme.sh
+COPY --chown=winebot:winebot scripts/setup/install-theme.sh /scripts/setup/install-theme.sh
 RUN mkdir -p /opt/winebot/prefix-template \
     && Xvfb :95 -screen 0 1280x720x24 >/dev/null 2>&1 & XVFB_PID=$! \
     && export DISPLAY=:95 \
     && wineboot -u \
     && wineserver -w \
-    && /scripts/install-theme.sh \
+    && /scripts/setup/install-theme.sh \
     && wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f \
     && wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d "Y" /f \
     && wineserver -k \
@@ -93,8 +93,8 @@ COPY VERSION /VERSION
 COPY docker/entrypoint.sh /entrypoint.sh
 
 RUN chown -R winebot:winebot /automation /scripts /api \
-    && find /automation /scripts -name "*.sh" -exec chmod +x {} + \
-    && find /automation /scripts -name "*.py" -exec chmod +x {} + \
+    && find /automation /scripts -type f -name "*.sh" -exec chmod +x {} + \
+    && find /automation /scripts -type f -name "*.py" -exec chmod +x {} + \
     && chmod +x /entrypoint.sh
 
 ENV WINEPREFIX=/wineprefix \
@@ -147,7 +147,7 @@ FROM base-interactive AS intent-test
 ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
-COPY requirements-devtest.txt /tmp/requirements-devtest.txt
+COPY requirements/requirements-devtest.txt /tmp/requirements-devtest.txt
 RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-devtest.txt \
     && rm /tmp/requirements-devtest.txt
 COPY tests /tests

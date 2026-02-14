@@ -152,7 +152,7 @@ async def click_at(data: ClickModel):
         "trace_id": trace_id,
         "via": "xdotool",
     })
-    run_command(["/automation/x11.sh", "click-at", str(data.x), str(data.y)])
+    run_command(["/automation/bin/x11.sh", "click-at", str(data.x), str(data.y)])
     append_input_event(session_dir, {
         "event": "agent_click",
         "phase": "complete",
@@ -445,8 +445,8 @@ def input_trace_windows_start(data: Optional[InputTraceWindowsStartModel] = Body
         if backend not in ("auto", "ahk", "hook"):
             raise HTTPException(status_code=400, detail="backend must be one of: auto, ahk, hook")
 
-        hook_script = "/scripts/diagnose-wine-hook.py"
-        ahk_script = "/automation/input_trace_windows.ahk"
+        hook_script = "/scripts/diagnostics/diagnose-wine-hook.py"
+        ahk_script = "/automation/core/input_trace_windows.ahk"
         log_path = input_trace_windows_log_path(session_dir)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         motion_ms = data.motion_sample_ms if data.motion_sample_ms is not None else 10

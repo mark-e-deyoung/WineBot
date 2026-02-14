@@ -125,7 +125,7 @@ async def health_x11():
     """X11 health details."""
     x11 = await safe_async_command(["xdpyinfo"])
     wm_pids = find_processes("openbox", exact=True)
-    active = await safe_async_command(["/automation/x11.sh", "active-window"])
+    active = await safe_async_command(["/automation/bin/x11.sh", "active-window"])
     return {
         "display": os.getenv("DISPLAY"),
         "screen": os.getenv("SCREEN"),
@@ -143,8 +143,8 @@ async def health_x11():
 @router.get("/windows")
 async def health_windows():
     """Window list and active window details."""
-    listing = await safe_async_command(["/automation/x11.sh", "list-windows"])
-    active = await safe_async_command(["/automation/x11.sh", "active-window"])
+    listing = await safe_async_command(["/automation/bin/x11.sh", "list-windows"])
+    active = await safe_async_command(["/automation/bin/x11.sh", "active-window"])
     windows = []
     if listing.get("ok") and listing.get("stdout"):
         for line in listing["stdout"].splitlines():
