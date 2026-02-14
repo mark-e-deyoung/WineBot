@@ -145,9 +145,31 @@ def schedule_shutdown(
 
 @router.get("/lifecycle/status")
 async def lifecycle_status():
-    """Alias for high-level health."""
+    """Detailed lifecycle status including process checks."""
     from api.routers.health import health_check
-    return health_check()
+    
+    # Base health
+    status = health_check()
+    
+    # Process details
+    processes = {
+        "xvfb": {"ok": len(find_processes("Xvfb", exact=True)) > 0},
+        "openbox": {"ok": len(find_processes("openbox", exact=True)) > 0},
+        "x11vnc": {"ok": len(find_processes("x11vnc", exact=True)) > 0},
+        "novnc": {"ok": len(find_processes("websockify")) > 0}, # Check websockify as proxy
+        "wine_explorer": {"ok": len(find_processes("explorer.exe")) > 0},
+        "wineserver": {"ok": len(find_processes("wineserver")) > 0},
+    }
+    
+    session_dir = read_session_dir()
+    
+    return {
+        **status,
+        "session_id": os.path.basename(session_dir) if session_dir else None,
+        "session_dir": session_dir,
+        "user_dir": os.getenv("WINEBOT_USER_DIR"),
+        "processes": processes
+    }
 
 
 @router.post("/openbox/reconfigure")
