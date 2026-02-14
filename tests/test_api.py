@@ -12,9 +12,9 @@ client = TestClient(app)
 def auth_headers():
     return {"X-API-Key": "test-token"}
 
-@patch("api.server.safe_command")
-@patch("api.server.check_binary")
-@patch("api.server.statvfs_info")
+@patch("api.routers.health.safe_command")
+@patch("api.routers.health.check_binary")
+@patch("api.routers.health.statvfs_info")
 @patch("os.path.isdir")
 @patch("os.path.exists")
 def test_health_check(mock_exists, mock_isdir, mock_statvfs, mock_check_binary, mock_safe_command, auth_headers):
@@ -35,7 +35,7 @@ def test_health_check_unauthorized(mock_run):
         response = client.get("/health", headers={"X-API-Key": "wrong"})
         assert response.status_code == 403
 
-@patch("api.server.meminfo_summary", return_value={"mem_total_kb": 1, "mem_available_kb": 1})
+@patch("api.routers.health.meminfo_summary", return_value={"mem_total_kb": 1, "mem_available_kb": 1})
 @patch("platform.node", return_value="test-host")
 def test_health_system(_mock_node, _mock_meminfo, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
@@ -44,7 +44,7 @@ def test_health_system(_mock_node, _mock_meminfo, auth_headers):
         payload = response.json()
         assert payload["hostname"] == "test-host"
 
-@patch("api.server.safe_async_command")
+@patch("api.routers.health.safe_async_command")
 def test_health_x11(mock_safe_async_command, auth_headers):
     async def side_effect(cmd, timeout=5):
         if cmd[0] == "xdpyinfo": return {"ok": True}
@@ -55,7 +55,7 @@ def test_health_x11(mock_safe_async_command, auth_headers):
         response = client.get("/health/x11", headers=auth_headers)
         assert response.status_code == 200
 
-@patch("api.server.safe_command")
+@patch("api.routers.lifecycle.safe_command")
 def test_openbox_reconfigure(mock_safe, auth_headers):
     mock_safe.return_value = {"ok": True, "stdout": "", "stderr": ""}
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
@@ -63,27 +63,25 @@ def test_openbox_reconfigure(mock_safe, auth_headers):
         assert response.status_code == 200
         assert response.json()["status"] == "reconfigured"
 
+@patch("api.routers.recording.read_session_dir", return_value=None)
 @patch("subprocess.Popen")
-def test_recording_start(mock_popen, tmp_path, auth_headers):
-    session_file = tmp_path / "session_file"
+def test_recording_start(mock_popen, mock_read, tmp_path, auth_headers):
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_SESSION_ROOT": str(tmp_path), "WINEBOT_RECORD": "1"}):
-        with patch("api.server.SESSION_FILE", str(session_file)):
-            response = client.post("/recording/start", headers=auth_headers, json={})
-            assert response.status_code == 200
+        response = client.post("/recording/start", headers=auth_headers, json={})
+        assert response.status_code == 200
 
-@patch("api.server.run_async_command", new_callable=AsyncMock)
-@patch("api.server.recorder_running", return_value=True)
-def test_recording_stop(mock_running, mock_run, tmp_path, auth_headers):
+@patch("api.routers.recording.run_async_command", new_callable=AsyncMock)
+@patch("api.routers.recording.recorder_running", return_value=True)
+@patch("api.routers.recording.read_session_dir")
+@patch("api.routers.recording.recorder_state", return_value="recording")
+def test_recording_stop(mock_state, mock_read, mock_running, mock_run, tmp_path, auth_headers):
     session_dir = tmp_path / "session-1"
     session_dir.mkdir()
-    session_file = tmp_path / "session_file"
-    session_file.write_text(str(session_dir))
+    mock_read.return_value = str(session_dir)
     mock_run.return_value = {"ok": True, "stderr": ""}
     with patch.dict(os.environ, {"API_TOKEN": "test-token", "WINEBOT_RECORD": "1"}):
-        with patch("api.server.SESSION_FILE", str(session_file)):
-            with patch("api.server.recorder_state", return_value="recording"):
-                response = client.post("/recording/stop", headers=auth_headers)
-                assert response.status_code == 200
+        response = client.post("/recording/stop", headers=auth_headers)
+        assert response.status_code == 200
 
 @patch("api.routers.automation.safe_command")
 @patch("api.routers.automation.validate_path")

@@ -824,6 +824,8 @@
     const tokenInput = document.getElementById("api-token");
     const saveTokenBtn = document.getElementById("save-token");
     const clearTokenBtn = document.getElementById("clear-token");
+    const vncHostInput = document.getElementById("vnc-host");
+    const vncPortInput = document.getElementById("vnc-port");
     const vncPasswordInput = document.getElementById("vnc-password");
     const saveVncBtn = document.getElementById("save-vnc");
     const clearVncBtn = document.getElementById("clear-vnc");
@@ -961,6 +963,8 @@
 
     const API_TOKEN_KEY = "winebot_api_token";
     const VNC_PASSWORD_KEY = "winebot_vnc_password";
+    const VNC_HOST_KEY = "winebot_vnc_host";
+    const VNC_PORT_KEY = "winebot_vnc_port";
     let rfbInstance = null;
     let vncNeedsCredentials = false;
     let vncConnected = false;
@@ -997,6 +1001,30 @@
         localStorage.setItem(API_TOKEN_KEY, value);
       } else {
         localStorage.removeItem(API_TOKEN_KEY);
+      }
+    }
+
+    function getVncHost() {
+      return localStorage.getItem(VNC_HOST_KEY) || "";
+    }
+
+    function setVncHost(value) {
+      if (value) {
+        localStorage.setItem(VNC_HOST_KEY, value);
+      } else {
+        localStorage.removeItem(VNC_HOST_KEY);
+      }
+    }
+
+    function getVncPort() {
+      return localStorage.getItem(VNC_PORT_KEY) || "";
+    }
+
+    function setVncPort(value) {
+      if (value) {
+        localStorage.setItem(VNC_PORT_KEY, value);
+      } else {
+        localStorage.removeItem(VNC_PORT_KEY);
       }
     }
 
@@ -1410,6 +1438,7 @@
     }
 
     async function updateDashboard() {
+      if (!versionLoaded) updateVersion();
       try {
         const results = await Promise.allSettled([
           apiFetch("/health"),
@@ -2045,12 +2074,24 @@
         const wsUrl = `${protocol}://${vncHost}:${vncPort}/`;
         console.log(`Attempting to connect to VNC at: ${wsUrl}`);
         
+        let connectionTimeout = setTimeout(() => {
+            if (!vncConnected) {
+                console.error("VNC Connection Timed Out");
+                setBadge(badgeVnc, "timeout", "error");
+                logMessage("error", "VNC connection timed out.");
+                if (rfbInstance) {
+                    try { rfbInstance.disconnect(); } catch (e) {}
+                }
+            }
+        }, 10000);
+
         rfbInstance = new mod.default(vncContainer, wsUrl);
         rfbInstance.viewOnly = vncViewOnlyToggle.checked;
         rfbInstance.scaleViewport = vncScaleToggle.checked;
         rfbInstance.resizeSession = false;
         rfbInstance.clipViewport = !vncScaleToggle.checked;
         rfbInstance.addEventListener("connect", () => {
+          clearTimeout(connectionTimeout);
           setBadge(badgeVnc, "connected", "ok");
           vncConnected = true;
           if (typeof rfbInstance.focus === "function") {
@@ -2140,6 +2181,7 @@
           }
         });
         rfbInstance.addEventListener("disconnect", () => {
+          clearTimeout(connectionTimeout);
           setBadge(badgeVnc, "disconnected", "error");
           vncConnected = false;
           logMessage("warn", "Live session disconnected.");
@@ -2176,7 +2218,9 @@
       initVnc();
     }
 
+    let versionLoaded = false;
     async function updateVersion() {
+      if (versionLoaded) return;
       const badgeVersion = document.getElementById("badge-version");
       try {
         const res = await apiFetch("/version");
@@ -2184,6 +2228,7 @@
           const data = await res.json();
           if (data && data.version) {
             badgeVersion.textContent = `Release ${data.version}`;
+            versionLoaded = true;
           }
         }
       } catch (err) {

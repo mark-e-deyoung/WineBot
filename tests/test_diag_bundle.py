@@ -26,8 +26,7 @@ def test_diag_bundle_redacts_and_writes_manifest(tmp_path: Path):
     subprocess.run(
         [
             "python3",
-            "scripts/diag_bundle.py",
-            "--session-dir",
+                            "scripts/diagnostics/diag_bundle.py",            "--session-dir",
             str(session),
             "--out",
             str(out),
@@ -61,8 +60,7 @@ def test_diag_bundle_size_cap_enforced(tmp_path: Path):
     proc = subprocess.run(
         [
             "python3",
-            "scripts/diag_bundle.py",
-            "--session-dir",
+                            "scripts/diagnostics/diag_bundle.py",            "--session-dir",
             str(session),
             "--out",
             str(out),

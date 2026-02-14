@@ -151,7 +151,9 @@ COPY requirements/requirements-devtest.txt /tmp/requirements-devtest.txt
 RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-devtest.txt \
     && rm /tmp/requirements-devtest.txt
 COPY tests /tests
-RUN chown -R winebot:winebot /tests \
+COPY docker/Dockerfile /docker/Dockerfile
+COPY compose/docker-compose.yml /compose/docker-compose.yml
+RUN chown -R winebot:winebot /tests /docker /compose \
     && find /tests -name "*.sh" -exec chmod +x {} + \
     && find /tests -name "*.py" -exec chmod +x {} +
 ENV BUILD_INTENT=test

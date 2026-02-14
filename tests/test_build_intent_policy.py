@@ -5,13 +5,13 @@ def test_dockerfile_declares_build_intent():
     dockerfile = Path("docker/Dockerfile").read_text()
     assert "ARG BASE_IMAGE=" in dockerfile
     assert "FROM ${BASE_IMAGE} AS base-runtime" in dockerfile
-    assert "FROM base-runtime AS intent-dev" in dockerfile
-    assert "FROM base-runtime AS intent-test" in dockerfile
-    assert "FROM base-runtime AS intent-rel" in dockerfile
-    assert "FROM base-runtime AS intent-rel-runner" in dockerfile
-    assert "COPY requirements-rel.txt" in dockerfile
-    assert "COPY requirements-devtest.txt" in dockerfile
-    assert "LABEL io.winebot.build_intent" in dockerfile
+    assert "FROM base-interactive AS intent-test" in dockerfile
+    assert "FROM intent-test AS intent-dev" in dockerfile
+    assert "FROM base-interactive AS intent-rel" in dockerfile
+    assert "FROM base-ready AS intent-rel-runner" in dockerfile
+    assert "COPY requirements/requirements-rel.txt" in dockerfile
+    assert "COPY requirements/requirements-devtest.txt" in dockerfile
+    assert "io.winebot.build_intent" in dockerfile
     assert "ENV WINEPREFIX=/wineprefix \\" in dockerfile
     assert "ENV BUILD_INTENT=rel" in dockerfile
     assert "ENV BUILD_INTENT=rel-runner" in dockerfile

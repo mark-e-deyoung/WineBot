@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import time
 
-SCRIPT = os.path.join(os.path.dirname(__file__), "..", "scripts", "auto-view.sh")
+SCRIPT = os.path.join(os.path.dirname(__file__), "..", "scripts", "bin", "auto-view.sh")
 
 
 def run_script(args, env=None):
