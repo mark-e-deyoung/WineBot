@@ -74,6 +74,7 @@ RUN chmod +x /scripts/setup/install-theme.sh \
     && wineboot -u \
     && wineserver -w \
     && /scripts/setup/install-theme.sh \
+    && wineserver -w \
     && wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseXInput2 /t REG_SZ /d "N" /f \
     && wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d "Y" /f \
     && wineserver -k \
