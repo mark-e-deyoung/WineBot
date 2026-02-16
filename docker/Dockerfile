@@ -67,7 +67,8 @@ FROM base-core AS prefix-warmer
 USER winebot
 ENV WINEPREFIX=/opt/winebot/prefix-template
 COPY --chown=winebot:winebot scripts/setup/install-theme.sh /scripts/setup/install-theme.sh
-RUN mkdir -p /opt/winebot/prefix-template \
+RUN chmod +x /scripts/setup/install-theme.sh \
+    && mkdir -p /opt/winebot/prefix-template \
     && Xvfb :95 -screen 0 1280x720x24 >/dev/null 2>&1 & XVFB_PID=$! \
     && export DISPLAY=:95 \
     && wineboot -u \
