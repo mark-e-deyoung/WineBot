@@ -74,7 +74,21 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.."; pwd)"
+# Find repo root by looking for VERSION file
+find_root() {
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
+  while [ "$dir" != "/" ]; do
+    if [ -f "$dir/VERSION" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+repo_root="$(find_root)" || fail "Could not find repo root (VERSION file missing)"
 compose_file="$repo_root/compose/docker-compose.yml"
 export BUILD_INTENT="${BUILD_INTENT:-rel}"
 if [ "$BUILD_INTENT" = "test" ]; then

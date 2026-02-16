@@ -17,8 +17,8 @@ All tasks must use the containerized runners defined in `compose/docker-compose.
 | **Unit/E2E Tests** | `docker compose -f compose/docker-compose.yml --profile test --profile interactive run --rm test-runner` |
 | **Diagnostics** | `docker compose -f compose/docker-compose.yml run --rm winebot /scripts/diagnostics/diagnose-master.sh` |
 
-## 4. Rationale
-This policy ensures:
-1.  **Reproducibility:** Every developer and CI/CD environment uses the exact same toolchain versions.
-2.  **Host Integrity:** Prevents pollution of the user's system with project-specific dependencies.
-3.  **Security:** Minimizes the risk of malicious or buggy code affecting the host system.
+## 5. Tooling Equivalence
+To prevent "CI Surprises," the exact same commands and configurations **MUST** be used locally and in CI/CD.
+*   **Unified Scripts:** All linting and testing logic must reside in `scripts/ci/` and be invoked by the container runners.
+*   **Version Parity:** The `test-runner` and `lint-runner` images must be used for all local checks to ensure identical environment (Python version, OS libraries).
+*   **Local Pre-verification:** Developers are encouraged to run `./scripts/bin/dev-lint.sh` and `./scripts/bin/dev-test.sh` before pushing. These helpers will wrap the necessary `docker compose` calls.

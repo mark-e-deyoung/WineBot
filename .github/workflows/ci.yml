@@ -18,22 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Build lint runner
+        run: docker compose -f compose/docker-compose.yml build lint-runner
       
-      - name: Install Linting Tools
-        run: pip install ruff mypy types-requests pytest httpx fastapi uvicorn
+      - name: Containerized Linting
+        run: docker compose -f compose/docker-compose.yml --profile lint run --rm lint-runner
 
-      - name: Code Quality (Ruff)
-        run: ruff check .
-
-      - name: Type Check (Mypy)
-        run: mypy api automation --ignore-missing-imports
-
-      - name: Unit Tests (Fast Fail)
-        run: pytest tests/test_api.py tests/test_input_validation.py
+      - name: Containerized Unit Tests
+        run: docker compose -f compose/docker-compose.yml --profile test --profile interactive run --rm test-runner /scripts/ci/test.sh
 
   integration:
     name: Integration (Smoke Test)
