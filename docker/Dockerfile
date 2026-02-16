@@ -59,7 +59,7 @@ RUN chmod +x /usr/local/bin/autoit /usr/local/bin/ahk /usr/local/bin/winpy
 
 # Install runtime Python dependencies (Linux)
 COPY requirements/requirements-rel.txt /tmp/requirements-rel.txt
-RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-rel.txt \
+RUN pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements-rel.txt \
     && rm /tmp/requirements-rel.txt
 
 # --- Stage 2.5: Prefix Warm-up ---
@@ -162,7 +162,7 @@ ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
 COPY requirements/requirements-devtest.txt /tmp/requirements-devtest.txt
-RUN pip3 install --break-system-packages --no-cache-dir --ignore-installed -r /tmp/requirements-devtest.txt \
+RUN pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements-devtest.txt \
     && rm /tmp/requirements-devtest.txt
 COPY tests /tests
 COPY docker/Dockerfile /docker/Dockerfile
