@@ -188,6 +188,9 @@ async def click_at(data: ClickModel):
             pass
 
     session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+
     trace_id = uuid.uuid4().hex
     append_input_event(
         session_dir,
@@ -263,6 +266,7 @@ def input_trace_status(
     session_root: Optional[str] = None,
 ):
     """Input trace status for the active or specified session."""
+    target_dir: Optional[str] = None
     if session_id or session_dir:
         target_dir = resolve_session_dir(session_id, session_dir, session_root)
         if not os.path.isdir(target_dir):
@@ -271,6 +275,7 @@ def input_trace_status(
         target_dir = read_session_dir()
     if not target_dir:
         return {"running": False, "state": None, "session_dir": None}
+    assert isinstance(target_dir, str)
     pid = input_trace_pid(target_dir)
     return {
         "session_dir": target_dir,
@@ -286,6 +291,7 @@ def input_trace_start(data: Optional[InputTraceStartModel] = Body(default=None))
     """Start the input tracing process for the active session."""
     if data is None:
         data = InputTraceStartModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -294,6 +300,9 @@ def input_trace_start(data: Optional[InputTraceStartModel] = Body(default=None))
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+    assert isinstance(session_dir, str)
     with input_trace_lock:
         if input_trace_running(session_dir):
             return {
@@ -333,6 +342,7 @@ def input_trace_stop(data: Optional[InputTraceStopModel] = Body(default=None)):
     """Stop the input tracing process for the active session."""
     if data is None:
         data = InputTraceStopModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -340,9 +350,10 @@ def input_trace_stop(data: Optional[InputTraceStopModel] = Body(default=None)):
         if not os.path.isdir(session_dir):
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
-        session_dir = read_session_dir()
+        session_dir = read_session_dir() # type: ignore
     if not session_dir:
         return {"status": "already_stopped"}
+    assert isinstance(session_dir, str)
     with input_trace_lock:
         if not input_trace_running(session_dir):
             return {"status": "already_stopped", "session_dir": session_dir}
@@ -375,6 +386,7 @@ def input_trace_x11_core_status(
     session_root: Optional[str] = None,
 ):
     """X11 core input trace status."""
+    target_dir: Optional[str] = None
     if session_id or session_dir:
         target_dir = resolve_session_dir(session_id, session_dir, session_root)
         if not os.path.isdir(target_dir):
@@ -383,6 +395,7 @@ def input_trace_x11_core_status(
         target_dir = read_session_dir()
     if not target_dir:
         return {"running": False, "state": None, "session_dir": None}
+    assert isinstance(target_dir, str)
     pid = input_trace_x11_core_pid(target_dir)
     return {
         "session_dir": target_dir,
@@ -400,6 +413,7 @@ def input_trace_x11_core_start(
     """Start the X11 core input tracing process for the active session."""
     if data is None:
         data = InputTraceX11CoreStartModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -408,6 +422,9 @@ def input_trace_x11_core_start(
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+    assert isinstance(session_dir, str)
     with input_trace_x11_core_lock:
         if input_trace_x11_core_running(session_dir):
             return {
@@ -462,9 +479,10 @@ def input_trace_x11_core_stop(
         if not os.path.isdir(session_dir):
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
-        session_dir = read_session_dir()
+        session_dir = read_session_dir() # type: ignore
     if not session_dir:
         return {"status": "already_stopped"}
+    assert isinstance(session_dir, str)
     with input_trace_x11_core_lock:
         if not input_trace_x11_core_running(session_dir):
             return {"status": "already_stopped", "session_dir": session_dir}
@@ -501,6 +519,7 @@ def input_trace_client_status(
     session_root: Optional[str] = None,
 ):
     """Client-side input trace status (noVNC UI)."""
+    target_dir: Optional[str] = None
     if session_id or session_dir:
         target_dir = resolve_session_dir(session_id, session_dir, session_root)
         if not os.path.isdir(target_dir):
@@ -509,6 +528,7 @@ def input_trace_client_status(
         target_dir = read_session_dir()
     if not target_dir:
         return {"enabled": False, "session_dir": None}
+    assert isinstance(target_dir, str)
     return {
         "session_dir": target_dir,
         "enabled": input_trace_client_enabled(target_dir),
@@ -523,6 +543,7 @@ def input_trace_client_start(
     """Enable client-side input trace collection."""
     if data is None:
         data = InputTraceClientStartModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -531,6 +552,9 @@ def input_trace_client_start(
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+    assert isinstance(session_dir, str)
     write_input_trace_client_state(session_dir, True)
     append_lifecycle_event(
         session_dir,
@@ -552,6 +576,7 @@ def input_trace_client_stop(
     """Disable client-side input trace collection."""
     if data is None:
         data = InputTraceClientStopModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -559,9 +584,10 @@ def input_trace_client_stop(
         if not os.path.isdir(session_dir):
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
-        session_dir = read_session_dir()
+        session_dir = read_session_dir() # type: ignore
     if not session_dir:
         return {"status": "disabled"}
+    assert isinstance(session_dir, str)
     write_input_trace_client_state(session_dir, False)
     append_lifecycle_event(
         session_dir,
@@ -605,6 +631,7 @@ def input_trace_windows_status(
     session_root: Optional[str] = None,
 ):
     """Windows-side input trace status."""
+    target_dir: Optional[str] = None
     if session_id or session_dir:
         target_dir = resolve_session_dir(session_id, session_dir, session_root)
         if not os.path.isdir(target_dir):
@@ -613,6 +640,7 @@ def input_trace_windows_status(
         target_dir = read_session_dir()
     if not target_dir:
         return {"running": False, "state": None, "session_dir": None}
+    assert isinstance(target_dir, str)
     pid = input_trace_windows_pid(target_dir)
     return {
         "session_dir": target_dir,
@@ -631,6 +659,7 @@ def input_trace_windows_start(
     """Start Windows-side input tracing."""
     if data is None:
         data = InputTraceWindowsStartModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -639,6 +668,9 @@ def input_trace_windows_start(
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+    assert isinstance(session_dir, str)
     with input_trace_windows_lock:
         if input_trace_windows_running(session_dir):
             return {
@@ -647,9 +679,8 @@ def input_trace_windows_start(
                 "pid": input_trace_windows_pid(session_dir),
             }
 
-        backend = (
-            data.backend or os.getenv("WINEBOT_INPUT_TRACE_WINDOWS_BACKEND", "auto")
-        ).lower()
+        backend_val = data.backend or os.getenv("WINEBOT_INPUT_TRACE_WINDOWS_BACKEND") or "auto"
+        backend = backend_val.lower()
         if backend not in ("auto", "ahk", "hook"):
             raise HTTPException(
                 status_code=400, detail="backend must be one of: auto, ahk, hook"
@@ -768,6 +799,7 @@ def input_trace_windows_stop(
     """Stop Windows-side input tracing."""
     if data is None:
         data = InputTraceWindowsStopModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -775,9 +807,10 @@ def input_trace_windows_stop(
         if not os.path.isdir(session_dir):
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
-        session_dir = read_session_dir()
+        session_dir = read_session_dir() # type: ignore
     if not session_dir:
         return {"status": "already_stopped"}
+    assert isinstance(session_dir, str)
     with input_trace_windows_lock:
         pid = input_trace_windows_pid(session_dir)
         if not pid or not pid_running(pid):
@@ -806,6 +839,7 @@ def input_trace_network_status(
     session_root: Optional[str] = None,
 ):
     """Network input trace status (VNC proxy)."""
+    target_dir: Optional[str] = None
     if session_id or session_dir:
         target_dir = resolve_session_dir(session_id, session_dir, session_root)
         if not os.path.isdir(target_dir):
@@ -814,6 +848,7 @@ def input_trace_network_status(
         target_dir = read_session_dir()
     if not target_dir:
         return {"running": False, "state": None, "session_dir": None}
+    assert isinstance(target_dir, str)
     pid = input_trace_network_pid(target_dir)
     return {
         "session_dir": target_dir,
@@ -831,6 +866,7 @@ def input_trace_network_start(
     """Enable network input trace logging (proxy must be running)."""
     if data is None:
         data = InputTraceClientStartModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -839,6 +875,9 @@ def input_trace_network_start(
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
         session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
+    assert isinstance(session_dir, str)
     with input_trace_network_lock:
         if not input_trace_network_running(session_dir):
             return {
@@ -867,6 +906,7 @@ def input_trace_network_stop(
     """Disable network input trace logging (proxy must be running)."""
     if data is None:
         data = InputTraceClientStopModel()
+    session_dir: Optional[str] = None
     if data.session_id or data.session_dir:
         session_dir = resolve_session_dir(
             data.session_id, data.session_dir, data.session_root
@@ -874,9 +914,10 @@ def input_trace_network_stop(
         if not os.path.isdir(session_dir):
             raise HTTPException(status_code=404, detail="Session directory not found")
     else:
-        session_dir = read_session_dir()
+        session_dir = read_session_dir() # type: ignore
     if not session_dir:
         return {"status": "disabled"}
+    assert isinstance(session_dir, str)
     with input_trace_network_lock:
         if not input_trace_network_running(session_dir):
             return {"status": "not_running", "session_dir": session_dir}

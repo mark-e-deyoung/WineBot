@@ -62,6 +62,9 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
         if data is None:
             data = RecordingStartModel()
         current_session = read_session_dir()
+        if not current_session:
+             raise HTTPException(status_code=500, detail="No active session")
+             
         if recorder_running(current_session):
             if recorder_state(current_session) == RecorderState.PAUSED.value:
                 cmd = [
@@ -89,11 +92,11 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
 
         if session_dir is None:
             session_root = data.session_root or os.getenv(
-                "WINEBOT_SESSION_ROOT", DEFAULT_SESSION_ROOT
-            )
-            os.makedirs(session_root, exist_ok=True)
+                "WINEBOT_SESSION_ROOT"
+            ) or DEFAULT_SESSION_ROOT
+            os.makedirs(str(session_root), exist_ok=True)
             session_id = generate_session_id(data.session_label)
-            session_dir = os.path.join(session_root, session_id)
+            session_dir = os.path.join(str(session_root), session_id)
             os.makedirs(session_dir, exist_ok=True)
             write_session_dir(session_dir)
             write_session_manifest(session_dir, session_id)
@@ -102,9 +105,10 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
             session_id = os.path.basename(session_dir)
             ensure_session_subdirs(session_dir)
 
+        assert isinstance(session_dir, str)
         display = data.display or os.getenv("DISPLAY", ":99")
         screen = data.resolution or os.getenv("SCREEN", "1920x1080")
-        resolution = parse_resolution(screen)
+        resolution = parse_resolution(str(screen))
         fps = data.fps or 30
         segment = next_segment_index(session_dir)
         segment_suffix = f"{segment:03d}"
@@ -117,11 +121,11 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
             "automation.recorder",
             "start",
             "--session-dir",
-            session_dir,
+            str(session_dir), # type: ignore
             "--display",
-            display,
+            str(display),
             "--resolution",
-            resolution,
+            str(resolution),
             "--fps",
             str(fps),
             "--segment",

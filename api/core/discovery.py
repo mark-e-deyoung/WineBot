@@ -52,7 +52,7 @@ class DiscoveryManager:
             "novnc_port": "6080",
         }
 
-    def _check_singleton(self):
+    def _check_singleton(self) -> None:
         """Check if another instance is already running if multiple not allowed."""
         if self.allow_multiple:
             return
@@ -76,7 +76,7 @@ class DiscoveryManager:
                 "Another WineBot service detected on network. Policy allows multiple, continuing."
             )
 
-    def start(self, session_id: str):
+    def start(self, session_id: str) -> None:
         """Register the service."""
         try:
             self._check_singleton()
@@ -113,14 +113,14 @@ class DiscoveryManager:
             print(f"--> Discovery background startup failed: {e}")
             logger.error(f"Discovery background startup failed: {e}")
 
-    def _update_loop(self):
+    def _update_loop(self) -> None:
         while not self.stop_event.is_set():
             # Properties are currently static to avoid Zeroconf 0.131+ immutability issues
             # We just sleep and check the stop event
             if self.stop_event.wait(30):
                 break
 
-    def stop(self):
+    def stop(self) -> None:
         self.stop_event.set()
         if self.zeroconf:
             if self.service_info:

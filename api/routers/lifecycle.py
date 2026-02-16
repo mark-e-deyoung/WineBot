@@ -212,7 +212,7 @@ def lifecycle_events(limit: int = 100):
     if not os.path.exists(path):
         return {"events": []}
     events = []
-    lines = deque(maxlen=limit)
+    lines: deque[str] = deque(maxlen=limit)
     try:
         with open(path, "r") as f:
             for line in f:
@@ -298,7 +298,7 @@ def list_sessions(root: Optional[str] = None, limit: int = 100):
     """List available sessions on disk."""
     if limit < 1:
         raise HTTPException(status_code=400, detail="limit must be >= 1")
-    root_dir = root or os.getenv("WINEBOT_SESSION_ROOT", "/artifacts/sessions")
+    root_dir = root or os.getenv("WINEBOT_SESSION_ROOT") or "/artifacts/sessions"
     try:
         root_dir = validate_path(root_dir)
     except Exception as exc:

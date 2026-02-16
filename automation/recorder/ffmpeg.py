@@ -1,6 +1,7 @@
 import subprocess
 import os
 import logging
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +12,9 @@ class FFMpegRecorder:
         self.resolution = resolution
         self.fps = fps
         self.output_file = output_file
-        self.process = None
+        self.process: Optional[subprocess.Popen] = None
 
-    def start(self, metadata: dict = None):
+    def start(self, metadata: Optional[Dict[Any, Any]] = None):
         cmd = [
             "ffmpeg",
             "-y",
@@ -73,7 +74,9 @@ class FFMpegRecorder:
 
         self.process = None
 
-    def mux_subtitles(self, ass_file: str, vtt_file: str, metadata: dict = None):
+    def mux_subtitles(
+        self, ass_file: str, vtt_file: str, metadata: Optional[Dict[Any, Any]] = None
+    ):
         """Embeds external subtitle files into the MKV container with global metadata."""
         if not os.path.exists(self.output_file):
             logger.error(f"Cannot mux: {self.output_file} not found.")

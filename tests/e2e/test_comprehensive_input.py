@@ -57,7 +57,7 @@ def test_comprehensive_input(page: Page):
     # Handle password
     badge = page.locator("#badge-vnc")
     expect(badge).not_to_have_text("connecting...", timeout=15000)
-    if "password required" in badge.text_content():
+    if "password required" in badge.text_content(): # type: ignore
         config_toggle = page.locator(
             ".panel-section", has_text="Configuration"
         ).locator(".section-toggle")

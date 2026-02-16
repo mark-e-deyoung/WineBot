@@ -2,4 +2,4 @@
 set -euo pipefail
 echo "--- Running Linting (Ruff + Mypy) ---"
 ruff check .
-mypy api automation --ignore-missing-imports
+mypy api automation tests --ignore-missing-imports

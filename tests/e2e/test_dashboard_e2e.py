@@ -32,7 +32,7 @@ def test_dashboard_loads(page: Page):
     expect(badge_vnc).not_to_have_text("connecting...", timeout=15000)
 
     # Check what state we ended up in
-    status = badge_vnc.text_content()
+    status = badge_vnc.text_content() or ""
     print(f"VNC Status: {status}")
 
     if "password required" in status:

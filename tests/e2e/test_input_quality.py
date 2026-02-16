@@ -17,7 +17,7 @@ def test_mouse_input_trace(page: Page):
     badge = page.locator("#badge-vnc")
     expect(badge).not_to_have_text("connecting...", timeout=15000)
 
-    if "password required" in badge.text_content():
+    if "password required" in badge.text_content(): # type: ignore
         # Expand config if needed
         toggle = page.locator(".panel-section", has_text="Configuration").locator(
             ".section-toggle"

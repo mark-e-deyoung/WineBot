@@ -119,6 +119,8 @@ async def run_ahk(data: AHKModel):
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
 
     session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
     script_id = uuid.uuid4().hex[:8]
     script_path = os.path.join(session_dir, "scripts", f"run_{script_id}.ahk")
     os.makedirs(os.path.dirname(script_path), exist_ok=True)
@@ -137,6 +139,8 @@ async def run_autoit(data: AutoItModel):
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
 
     session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
     script_id = uuid.uuid4().hex[:8]
     script_path = os.path.join(session_dir, "scripts", f"run_{script_id}.au3")
     os.makedirs(os.path.dirname(script_path), exist_ok=True)
@@ -155,6 +159,8 @@ async def run_python(data: PythonScriptModel):
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
 
     session_dir = ensure_session_dir()
+    if not session_dir:
+        raise HTTPException(status_code=500, detail="No active session")
     script_id = uuid.uuid4().hex[:8]
     script_path = os.path.join(session_dir, "scripts", f"run_{script_id}.py")
     os.makedirs(os.path.dirname(script_path), exist_ok=True)

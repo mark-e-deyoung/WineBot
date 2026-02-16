@@ -9,7 +9,7 @@ import fcntl
 import datetime
 import subprocess
 from collections import deque
-from typing import Optional
+from typing import Optional, Any
 
 from .models import SessionManifest, Event
 from .ffmpeg import FFMpegRecorder
@@ -168,10 +168,11 @@ def load_input_trace_events(session_dir: str) -> list:
 
     session_id = os.path.basename(session_dir)
     max_events = int(os.getenv("WINEBOT_RECORD_INPUT_MAX_EVENTS", "50000"))
+    event_buffer: Any
     if max_events > 0:
         event_buffer = deque(maxlen=max_events)
     else:
-        event_buffer = []
+        event_buffer = [] # type: ignore
 
     for layer, path in input_log_paths(session_dir):
         if not os.path.exists(path):

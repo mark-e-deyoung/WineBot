@@ -366,7 +366,7 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                         if not line:
                             continue
                         event = None
-                        payload = {
+                        payload: Dict[str, Any] = {
                             "schema_version": EVENT_SCHEMA_VERSION,
                             "source": DEFAULT_SOURCE,
                             "layer": DEFAULT_LAYER,
