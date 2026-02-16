@@ -104,7 +104,7 @@ services:
       - ..:/work
       - ../artifacts:/output
     command: >
-      bash -c "sleep 15 && /work/scripts/ci/test.sh && pytest -v -s tests/e2e"
+      bash -c "sleep 15 && /work/scripts/ci/test.sh && pytest -v -s /work/tests/e2e"
 
   lint-runner:
     build:
@@ -117,6 +117,15 @@ services:
       - ..:/work
     command: >
       /work/scripts/ci/lint.sh
+
+  smoke-test:
+    image: winebot:test
+    profiles:
+      - test
+    volumes:
+      - ..:/work
+      - wineprefix:/wineprefix
+    command: ["/work/scripts/ci/smoke-test.sh"]
 
 volumes:
   wineprefix:

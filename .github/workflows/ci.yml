@@ -22,10 +22,10 @@ jobs:
         run: docker compose -f compose/docker-compose.yml build lint-runner
       
       - name: Containerized Linting
-        run: docker compose -f compose/docker-compose.yml --profile lint run --rm lint-runner
+        run: docker compose -f compose/docker-compose.yml --profile lint run --rm lint-runner scripts/ci/lint.sh
 
       - name: Containerized Unit Tests
-        run: docker compose -f compose/docker-compose.yml --profile test --profile interactive run --rm test-runner /scripts/ci/test.sh
+        run: docker compose -f compose/docker-compose.yml --profile test --profile interactive run --rm test-runner scripts/ci/test.sh
 
   integration:
     name: Integration (Smoke Test)
