@@ -150,16 +150,19 @@ wait_for_windows() {
   local attempts="${WINEBOT_WAIT_FOR_WINDOWS_ATTEMPTS:-360}"
   local delay_s="${WINEBOT_WAIT_FOR_WINDOWS_DELAY_S:-1}"
   local attempt
+  log "Waiting for windows on DISPLAY=:99 for $service..."
   for attempt in $(seq 1 "$attempts"); do
     set +e
-    windows="$(compose_exec "$profile" "$service" "DISPLAY=:99 xdotool search --name '.*'" 2>/dev/null)"
+    # Use -e to pass DISPLAY environment variable correctly to docker compose exec
+    windows="$("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" exec -T -e DISPLAY=:99 --user winebot "$service" xdotool search --name '.*' 2>/dev/null)"
     rc=$?
     set -e
     if [ "$rc" -eq 0 ] && [ -n "${windows:-}" ]; then
+      log "Detected windows after ${attempt} attempts."
       return 0
     fi
     if [ $((attempt % 30)) -eq 0 ]; then
-      log "Still waiting for windows on DISPLAY=:99 for $service (attempt ${attempt}/${attempts})..."
+      log "Still waiting for windows on DISPLAY=:99 for $service (attempt ${attempt}/${attempts}, rc=${rc})..."
     fi
     sleep "$delay_s"
   done
