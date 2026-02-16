@@ -4,7 +4,7 @@ uvicorn==0.40.0
 python-multipart==0.0.22
 httpx==0.28.1
 websockify==0.12.0
-cryptography==43.0.0
+cryptography==46.0.5
 Deprecated==1.2.18
 anyio==4.12.1
 pydantic==2.12.5
