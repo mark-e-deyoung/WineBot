@@ -10,9 +10,11 @@ Run a basic smoke test against the WineBot services.
 Options:
   --include-interactive  Also verify VNC/noVNC services.
   --include-debug        Run a winedbg smoke check.
+  --include-lint         Run containerized linting (ruff, mypy).
+  --include-tests        Run containerized unit and E2E tests.
   --phase NAME           Run a specific diagnostic phase (health, smoke, cv, trace, recording).
   --skip-base-checks     Skip base desktop/prefix/screenshot checks (for phased CI runs).
-  --full                 Run all internal diagnostic phases.
+  --full                 Run all internal diagnostic phases (including lint/tests).
   --no-build             Skip building the image.
   --cleanup              Stop services started by this script.
   -h, --help             Show this help.
@@ -21,6 +23,8 @@ EOF
 
 include_interactive="0"
 include_debug="0"
+include_lint="0"
+include_tests="0"
 phase=""
 full="0"
 build="1"
@@ -34,6 +38,12 @@ while [ $# -gt 0 ]; do
       ;;
     --include-debug)
       include_debug="1"
+      ;;
+    --include-lint)
+      include_lint="1"
+      ;;
+    --include-tests)
+      include_tests="1"
       ;;
     --phase)
       phase="$2"
@@ -64,7 +74,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.."; pwd)"
 compose_file="$repo_root/compose/docker-compose.yml"
 export BUILD_INTENT="${BUILD_INTENT:-rel}"
 if [ "$BUILD_INTENT" = "test" ]; then
@@ -104,7 +114,7 @@ compose_up() {
   local service="$2"
   # Docker Compose v1 sometimes fails with ContainerConfig errors if stale containers exist.
   # Proactively clear any leftovers before starting.
-  "${compose_cmd[@]}" -f "$compose_file" down --remove-orphans >/dev/null 2>&1 || true
+  "${compose_cmd[@]}" -f "$compose_file" down --volumes --remove-orphans >/dev/null 2>&1 || true
   local args=("${compose_cmd[@]}" -f "$compose_file" --profile "$profile" up -d --force-recreate)
   if [ "$build" = "1" ]; then
     args+=(--build)
@@ -128,7 +138,7 @@ wait_for_windows() {
   local attempt
   for attempt in $(seq 1 "$attempts"); do
     set +e
-    windows="$(compose_exec "$profile" "$service" "DISPLAY=:99 wmctrl -l" 2>/dev/null)"
+    windows="$(compose_exec "$profile" "$service" "DISPLAY=:99 xdotool search --name '.*'" 2>/dev/null)"
     rc=$?
     set -e
     if [ "$rc" -eq 0 ] && [ -n "${windows:-}" ]; then
@@ -188,7 +198,7 @@ if [ "$skip_base_checks" != "1" ]; then
   compose_exec headless winebot "/scripts/internal/openbox-menu-test.sh --run-x11 --run-wine"
 
   log "Checking window list..."
-  window_list="$(compose_exec headless winebot "DISPLAY=:99 wmctrl -l")"
+  window_list="$(compose_exec headless winebot "/automation/bin/x11.sh list-windows")"
   window_count="$(echo "$window_list" | grep -c -v "^$")"
   window_count="$(echo "$window_count" | tr -d ' ')"
   log "Found $window_count window(s):"
@@ -221,6 +231,21 @@ if [ "$include_debug" = "1" ]; then
   log "Running winedbg smoke check..."
   winedbg_env=(ENABLE_WINEDBG=1 WINEDBG_MODE=default "WINEDBG_COMMAND=info proc" APP_EXE=cmd.exe "APP_ARGS=/c exit")
   env "${winedbg_env[@]}" "${compose_cmd[@]}" -f "$compose_file" --profile headless run --rm winebot
+fi
+
+if [ "$include_lint" = "1" ] || [ "$full" = "1" ]; then
+  log "Running containerized linting..."
+  "${compose_cmd[@]}" -f "$compose_file" --profile lint run --rm lint-runner
+fi
+
+if [ "$include_tests" = "1" ] || [ "$full" = "1" ]; then
+  log "Running containerized unit and E2E tests..."
+  # Ensure the interactive stack is up for E2E tests
+  if ! service_running interactive winebot-interactive; then
+    compose_up interactive winebot-interactive
+    wait_for_windows interactive winebot-interactive
+  fi
+  "${compose_cmd[@]}" -f "$compose_file" --profile test --profile interactive run --rm test-runner
 fi
 
 if [ "$full" = "1" ] || [ -n "$phase" ]; then

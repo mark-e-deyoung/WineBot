@@ -27,3 +27,11 @@ Issues and pull requests opened by unapproved actors are automatically labeled `
 
 ## Security
 Do not disclose vulnerabilities publicly in issues or pull requests. Report security concerns through private channels.
+
+## Development Policies
+
+### Containerized Tooling
+WineBot enforces a strict policy of containerized development. Do not run tests or linters on your host machine.
+- Reference: `policy/containerized-tooling-policy.md`
+- Usage: `scripts/smoke-test.sh --full`
+

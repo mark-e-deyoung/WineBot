@@ -80,11 +80,8 @@ RUN mkdir -p /opt/winebot/prefix-template \
     && kill $XVFB_PID || true \
     && rm -rf /tmp/.X95-lock /tmp/.X11-unix/X95
 
-# --- Stage 2.6: Base Ready (The fully-initialized foundation) ---
-FROM base-core AS base-ready
-# Copy the template first
-COPY --from=prefix-warmer --chown=winebot:winebot /opt/winebot/prefix-template /opt/winebot/prefix-template
-
+# --- Stage 2.6: Base Logic (Code Foundation) ---
+FROM base-core AS base-logic
 # Copy application code
 COPY automation /automation
 COPY scripts /scripts
@@ -109,6 +106,11 @@ ENV WINEPREFIX=/wineprefix \
 WORKDIR /
 EXPOSE 8000
 
+# --- Stage 2.7: Base Ready (Standard foundation with prefix) ---
+FROM base-logic AS base-ready
+# Copy the template
+COPY --from=prefix-warmer --chown=winebot:winebot /opt/winebot/prefix-template /opt/winebot/prefix-template
+
 # --- Stage 3: Base Interactive ---
 FROM base-ready AS base-interactive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -119,12 +121,22 @@ COPY docker/tint2/tint2rc /etc/xdg/tint2/tint2rc
 
 # --- Final Intents ---
 
+# SLIM: No pre-warmed prefix, saves 1.4GB. Ideal for CI and quick tests.
+FROM base-logic AS intent-slim
+ARG VCS_REF
+ARG BUILD_DATE
+ARG SOURCE_REPO
+ENV BUILD_INTENT=slim
+LABEL io.winebot.version="0.9.5" \
+      io.winebot.build_intent="slim"
+ENTRYPOINT ["/entrypoint.sh"]
+
 FROM base-ready AS intent-rel-runner
 ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
 ENV BUILD_INTENT=rel-runner
-LABEL io.winebot.version="0.9.3" \
+LABEL io.winebot.version="0.9.5" \
       io.winebot.build_intent="rel-runner" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -136,7 +148,7 @@ ARG VCS_REF
 ARG BUILD_DATE
 ARG SOURCE_REPO
 ENV BUILD_INTENT=rel
-LABEL io.winebot.version="0.9.3" \
+LABEL io.winebot.version="0.9.5" \
       io.winebot.build_intent="rel" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -157,7 +169,7 @@ RUN chown -R winebot:winebot /tests /docker /compose \
     && find /tests -name "*.sh" -exec chmod +x {} + \
     && find /tests -name "*.py" -exec chmod +x {} +
 ENV BUILD_INTENT=test
-LABEL io.winebot.version="0.9.3" \
+LABEL io.winebot.version="0.9.5" \
       io.winebot.build_intent="test" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -170,11 +182,11 @@ ARG BUILD_DATE
 ARG SOURCE_REPO
 RUN apt-get update && apt-get install -y --no-install-recommends strace lsof nano && rm -rf /var/lib/apt/lists/*
 ENV BUILD_INTENT=dev
-LABEL io.winebot.version="0.9.3" \
+LABEL io.winebot.version="0.9.5" \
       io.winebot.build_intent="dev" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="${SOURCE_REPO}"
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Cache bust: Fri Feb 13 2026
+# Cache bust: Sun Feb 15 2026 14:00:00

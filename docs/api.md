@@ -88,7 +88,8 @@ WineBot publishes explicit API and artifact/event schema versions.
 
 #### `GET /health`
 High-level health summary (X11, Wine prefix, tools, storage).
-- **Response:** `{"status": "ok", "x11": "connected", "wineprefix": "ready", "tools_ok": true, ...}`
+- **Response:** `{"status": "ok", "x11": "connected", "wineprefix": "ready", "tools_ok": true, "security_warning": "...", ...}`
+- **Security Warning:** Reports if VNC is exposed on a public IP or running without a password.
 
 #### `GET /health/system`
 System stats (uptime, load average, CPU count, memory).
@@ -225,8 +226,18 @@ Focus a specific window.
 
 #### `POST /input/mouse/click`
 Click at specific coordinates.
-- **Body:** `{"x": 100, "y": 200}`
+- **Body:** 
+  ```json
+  {
+    "x": 100, 
+    "y": 200, 
+    "button": 1, 
+    "window_title": "Notepad", 
+    "relative": true
+  }
+  ```
 - **Response:** `{"status": "clicked", "trace_id": "...", ...}`
+- **Notes:** Supports relative clicking if `window_title` is provided and `relative` is true. Clicks are validated against the current `SCREEN` resolution if not relative.
 
 #### `GET /input/trace/status`
 Get input trace status for the active session.

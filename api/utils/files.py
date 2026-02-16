@@ -11,7 +11,15 @@ from api.utils.process import pid_running
 
 SESSION_FILE = "/tmp/winebot_current_session"
 DEFAULT_SESSION_ROOT = "/artifacts/sessions"
-ALLOWED_PREFIXES = ["/apps", "/wineprefix", "/tmp", "/artifacts", "/opt/winebot", "/usr/bin"]
+ALLOWED_PREFIXES = [
+    "/apps",
+    "/wineprefix",
+    "/tmp",
+    "/artifacts",
+    "/opt/winebot",
+    "/usr/bin",
+]
+
 
 def validate_path(path: str):
     """Ensure path is within allowed directories to prevent traversal."""
@@ -29,6 +37,7 @@ def validate_path(path: str):
         raise Exception(f"Path not allowed. Must be under one of: {ALLOWED_PREFIXES}")
     return resolved
 
+
 def statvfs_info(path: str) -> Dict[str, Any]:
     try:
         st = os.statvfs(path)
@@ -43,12 +52,14 @@ def statvfs_info(path: str) -> Dict[str, Any]:
     except FileNotFoundError:
         return {"path": path, "ok": False, "error": "not found"}
 
+
 def read_pid(path: str) -> Optional[int]:
     try:
         with open(path, "r") as f:
             return int(f.read().strip())
     except (FileNotFoundError, ValueError):
         return None
+
 
 def read_session_dir() -> Optional[str]:
     if not os.path.exists(SESSION_FILE):
@@ -60,13 +71,16 @@ def read_session_dir() -> Optional[str]:
     except Exception:
         return None
 
+
 def session_id_from_dir(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
         return None
     return os.path.basename(session_dir)
 
+
 def lifecycle_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "lifecycle.jsonl")
+
 
 def append_lifecycle_event(
     session_dir: Optional[str],
@@ -95,17 +109,21 @@ def append_lifecycle_event(
     except Exception:
         pass
 
+
 def input_trace_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "input_events.jsonl")
 
+
 def input_trace_pid(session_dir: str) -> Optional[int]:
     return read_pid(os.path.join(session_dir, "input_trace.pid"))
+
 
 def input_trace_running(session_dir: Optional[str]) -> bool:
     if not session_dir:
         return False
     pid = input_trace_pid(session_dir)
     return pid is not None and pid_running(pid)
+
 
 def input_trace_state(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
@@ -117,14 +135,17 @@ def input_trace_state(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def input_trace_x11_core_pid(session_dir: str) -> Optional[int]:
     return read_pid(os.path.join(session_dir, "input_trace_x11_core.pid"))
+
 
 def input_trace_x11_core_running(session_dir: Optional[str]) -> bool:
     if not session_dir:
         return False
     pid = input_trace_x11_core_pid(session_dir)
     return pid is not None and pid_running(pid)
+
 
 def input_trace_x11_core_state(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
@@ -135,11 +156,14 @@ def input_trace_x11_core_state(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def input_trace_x11_core_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "input_events_x11_core.jsonl")
 
+
 def input_trace_x11_core_pid_path(session_dir: str) -> str:
     return os.path.join(session_dir, "input_trace_x11_core.pid")
+
 
 def write_input_trace_x11_core_state(session_dir: str, state: str) -> None:
     try:
@@ -148,14 +172,17 @@ def write_input_trace_x11_core_state(session_dir: str, state: str) -> None:
     except Exception:
         pass
 
+
 def input_trace_network_pid(session_dir: str) -> Optional[int]:
     return read_pid(os.path.join(session_dir, "input_trace_network.pid"))
+
 
 def input_trace_network_running(session_dir: Optional[str]) -> bool:
     if not session_dir:
         return False
     pid = input_trace_network_pid(session_dir)
     return pid is not None and pid_running(pid)
+
 
 def input_trace_network_state(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
@@ -166,8 +193,10 @@ def input_trace_network_state(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def input_trace_network_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "input_events_network.jsonl")
+
 
 def write_input_trace_network_state(session_dir: str, state: str) -> None:
     try:
@@ -175,6 +204,7 @@ def write_input_trace_network_state(session_dir: str, state: str) -> None:
             f.write(state)
     except Exception:
         pass
+
 
 def input_trace_client_enabled(session_dir: Optional[str]) -> bool:
     if not session_dir:
@@ -185,8 +215,10 @@ def input_trace_client_enabled(session_dir: Optional[str]) -> bool:
     except Exception:
         return False
 
+
 def input_trace_client_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "input_events_client.jsonl")
+
 
 def write_input_trace_client_state(session_dir: str, enabled: bool) -> None:
     try:
@@ -195,14 +227,17 @@ def write_input_trace_client_state(session_dir: str, enabled: bool) -> None:
     except Exception:
         pass
 
+
 def input_trace_windows_pid(session_dir: str) -> Optional[int]:
     return read_pid(os.path.join(session_dir, "input_trace_windows.pid"))
+
 
 def input_trace_windows_running(session_dir: Optional[str]) -> bool:
     if not session_dir:
         return False
     pid = input_trace_windows_pid(session_dir)
     return pid is not None and pid_running(pid)
+
 
 def input_trace_windows_state(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
@@ -213,6 +248,7 @@ def input_trace_windows_state(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def input_trace_windows_backend(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
         return None
@@ -222,11 +258,14 @@ def input_trace_windows_backend(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def input_trace_windows_log_path(session_dir: str) -> str:
     return os.path.join(session_dir, "logs", "input_events_windows.jsonl")
 
+
 def input_trace_windows_pid_path(session_dir: str) -> str:
     return os.path.join(session_dir, "input_trace_windows.pid")
+
 
 def write_input_trace_windows_state(session_dir: str, state: str) -> None:
     try:
@@ -235,6 +274,7 @@ def write_input_trace_windows_state(session_dir: str, state: str) -> None:
     except Exception:
         pass
 
+
 def write_input_trace_windows_backend(session_dir: str, backend: str) -> None:
     try:
         with open(os.path.join(session_dir, "input_trace_windows.backend"), "w") as f:
@@ -242,8 +282,10 @@ def write_input_trace_windows_backend(session_dir: str, backend: str) -> None:
     except Exception:
         pass
 
+
 def to_wine_path(path: str) -> str:
     return "Z:" + path.replace("/", "\\")
+
 
 def resolve_session_dir(
     session_id: Optional[str],
@@ -260,6 +302,7 @@ def resolve_session_dir(
     safe_root = validate_path(root)
     return os.path.join(safe_root, session_id)
 
+
 def ensure_session_subdirs(session_dir: str) -> None:
     for subdir in ("logs", "screenshots", "scripts", "user"):
         try:
@@ -267,12 +310,21 @@ def ensure_session_subdirs(session_dir: str) -> None:
         except Exception:
             pass
 
+
 def ensure_user_profile(user_dir: str) -> None:
     paths = [
         os.path.join(user_dir, "AppData", "Roaming"),
         os.path.join(user_dir, "AppData", "Local"),
         os.path.join(user_dir, "AppData", "LocalLow"),
-        os.path.join(user_dir, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs"),
+        os.path.join(
+            user_dir,
+            "AppData",
+            "Roaming",
+            "Microsoft",
+            "Windows",
+            "Start Menu",
+            "Programs",
+        ),
         os.path.join(user_dir, "Desktop"),
         os.path.join(user_dir, "Documents"),
         os.path.join(user_dir, "Downloads"),
@@ -294,9 +346,11 @@ def ensure_user_profile(user_dir: str) -> None:
         except Exception:
             pass
 
+
 def write_session_dir(path: str) -> None:
     with open(SESSION_FILE, "w") as f:
         f.write(path)
+
 
 def write_session_manifest(session_dir: str, session_id: str) -> None:
     try:
@@ -316,6 +370,7 @@ def write_session_manifest(session_dir: str, session_id: str) -> None:
     except Exception:
         pass
 
+
 def link_wine_user_dir(user_dir: str) -> None:
     wineprefix = os.getenv("WINEPREFIX", "/wineprefix")
     base_dir = os.path.join(wineprefix, "drive_c", "users")
@@ -326,11 +381,13 @@ def link_wine_user_dir(user_dir: str) -> None:
             os.unlink(wine_user_dir)
         elif os.path.exists(wine_user_dir):
             import shutil
+
             backup = f"{wine_user_dir}.bak.{int(time.time())}"
             shutil.move(wine_user_dir, backup)
         os.symlink(user_dir, wine_user_dir)
     except Exception:
         pass
+
 
 def write_session_state(session_dir: str, state: str) -> None:
     try:
@@ -338,6 +395,7 @@ def write_session_state(session_dir: str, state: str) -> None:
             f.write(state)
     except Exception:
         pass
+
 
 def ensure_session_dir(session_root: Optional[str] = None) -> Optional[str]:
     session_dir = read_session_dir()
@@ -350,13 +408,32 @@ def ensure_session_dir(session_root: Optional[str] = None) -> Optional[str]:
     safe_root = validate_path(root)
     os.makedirs(safe_root, exist_ok=True)
     import uuid
+
     session_id = f"session-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     session_dir = os.path.join(safe_root, session_id)
-    os.makedirs(session_dir, exist_ok=True)
-    write_session_dir(session_dir)
-    write_session_manifest(session_dir, session_id)
-    ensure_session_subdirs(session_dir)
+    temp_dir = f"{session_dir}.tmp"
+
+    try:
+        os.makedirs(temp_dir, exist_ok=True)
+        # Initialize structure in temp dir
+        ensure_session_subdirs(temp_dir)
+        write_session_manifest(temp_dir, session_id)
+
+        # Atomic commit
+        os.rename(temp_dir, session_dir)
+
+        # Post-commit: Update global pointer
+        write_session_dir(session_dir)
+    except Exception:
+        # Cleanup on failure
+        import shutil
+
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        raise
+
     return session_dir
+
 
 def next_segment_index(session_dir: str) -> int:
     index_path = os.path.join(session_dir, "segment_index.txt")
@@ -396,12 +473,14 @@ def next_segment_index(session_dir: str) -> int:
             pass
     return current
 
+
 def read_session_state(session_dir: str) -> Optional[str]:
     try:
         with open(os.path.join(session_dir, "session.state"), "r") as f:
             return f.read().strip() or None
     except Exception:
         return None
+
 
 def append_trace_event(path: str, payload: Dict[str, Any]) -> None:
     try:
@@ -422,15 +501,19 @@ def append_trace_event(path: str, payload: Dict[str, Any]) -> None:
     except Exception:
         pass
 
+
 def append_input_event(session_dir: Optional[str], event: Dict[str, Any]) -> None:
     if not session_dir:
         return
     payload = dict(event)
     payload.setdefault("schema_version", EVENT_SCHEMA_VERSION)
-    payload.setdefault("timestamp_utc", datetime.datetime.now(datetime.timezone.utc).isoformat())
+    payload.setdefault(
+        "timestamp_utc", datetime.datetime.now(datetime.timezone.utc).isoformat()
+    )
     payload.setdefault("timestamp_epoch_ms", int(time.time() * 1000))
     payload.setdefault("session_id", session_id_from_dir(session_dir))
     append_trace_event(input_trace_log_path(session_dir), payload)
+
 
 def read_file_tail(path: str, max_bytes: int = 4096) -> str:
     try:
@@ -449,6 +532,7 @@ def read_file_tail(path: str, max_bytes: int = 4096) -> str:
     except Exception:
         return ""
 
+
 def truncate_text(value: Optional[str], limit: int = 4000) -> str:
     if not value:
         return ""
@@ -457,14 +541,17 @@ def truncate_text(value: Optional[str], limit: int = 4000) -> str:
     suffix = f"\n...[truncated {len(value) - limit} chars]"
     return value[:limit] + suffix
 
+
 def recorder_pid(session_dir: str) -> Optional[int]:
     return read_pid(os.path.join(session_dir, "recorder.pid"))
+
 
 def recorder_running(session_dir: Optional[str]) -> bool:
     if not session_dir:
         return False
     pid = recorder_pid(session_dir)
     return pid is not None and pid_running(pid)
+
 
 def recorder_state(session_dir: Optional[str]) -> Optional[str]:
     if not session_dir:
@@ -476,9 +563,63 @@ def recorder_state(session_dir: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def write_recorder_state(session_dir: str, state: str) -> None:
     try:
         with open(os.path.join(session_dir, "recorder.state"), "w") as f:
             f.write(state)
     except Exception:
         pass
+
+
+def cleanup_old_sessions(
+    max_sessions: Optional[int] = None, ttl_days: Optional[int] = None
+) -> int:
+    """Delete old sessions based on count and/or age."""
+    import shutil
+
+    root = os.getenv("WINEBOT_SESSION_ROOT", DEFAULT_SESSION_ROOT)
+    if not os.path.isdir(root):
+        return 0
+
+    current_session = read_session_dir()
+    sessions = []
+    for name in os.listdir(root):
+        if not name.startswith("session-"):
+            continue
+        path = os.path.join(root, name)
+        if not os.path.isdir(path):
+            continue
+        if current_session and os.path.abspath(path) == os.path.abspath(
+            current_session
+        ):
+            continue
+        sessions.append({"path": path, "mtime": os.path.getmtime(path)})
+
+    # Sort by mtime (newest first)
+    sessions.sort(key=lambda s: s["mtime"], reverse=True)
+
+    deleted_count = 0
+    now = time.time()
+
+    for i, s in enumerate(sessions):
+        should_delete = False
+
+        # 1. TTL Check
+        if ttl_days is not None:
+            age_days = (now - s["mtime"]) / 86400
+            if age_days > ttl_days:
+                should_delete = True
+
+        # 2. Max Sessions Check (Index starts at 0, so i=10 means it's the 11th session)
+        if max_sessions is not None and i >= max_sessions:
+            should_delete = True
+
+        if should_delete:
+            try:
+                shutil.rmtree(s["path"])
+                deleted_count += 1
+            except Exception:
+                pass
+
+    return deleted_count

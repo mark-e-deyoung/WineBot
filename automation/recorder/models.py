@@ -1,5 +1,4 @@
 import json
-import time
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any
 
@@ -8,6 +7,7 @@ try:
 except Exception:
     ARTIFACT_SCHEMA_VERSION = "1.0"
     EVENT_SCHEMA_VERSION = "1.0"
+
 
 @dataclass
 class SessionManifest:
@@ -20,7 +20,7 @@ class SessionManifest:
     fps: int
     git_sha: Optional[str] = None
     schema_version: str = ARTIFACT_SCHEMA_VERSION
-    
+
     def to_json(self):
         return json.dumps(asdict(self), indent=2)
 
@@ -30,13 +30,14 @@ class SessionManifest:
         data.setdefault("schema_version", ARTIFACT_SCHEMA_VERSION)
         return SessionManifest(**data)
 
+
 @dataclass
 class Event:
     session_id: str
     t_rel_ms: int
     t_epoch_ms: int
     level: str  # INFO, WARN, ERROR, DEBUG
-    kind: str   # lifecycle, annotation, process, error
+    kind: str  # lifecycle, annotation, process, error
     message: str
     pos: Optional[Dict[str, int]] = None  # x, y, w, h
     style: Optional[Dict[str, str]] = None

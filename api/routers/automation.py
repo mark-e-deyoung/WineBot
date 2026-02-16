@@ -9,7 +9,7 @@ from api.utils.files import (
     validate_path,
     to_wine_path,
     read_session_dir,
-    ensure_session_dir
+    ensure_session_dir,
 )
 from api.utils.process import safe_command, manage_process
 from api.core.models import (
@@ -18,7 +18,7 @@ from api.core.models import (
     FocusModel,
     AHKModel,
     AutoItModel,
-    PythonScriptModel
+    PythonScriptModel,
 )
 from api.core.broker import broker
 
@@ -31,7 +31,7 @@ async def run_app(data: AppRunModel):
     """Run a Windows application."""
     if not await broker.check_access():
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
-    
+
     app_path = data.path
     # Allow naked filenames (e.g., cmd.exe, notepad.exe) or resolve non-absolute paths
     if os.path.sep not in app_path and "\\" not in app_path:
@@ -41,36 +41,52 @@ async def run_app(data: AppRunModel):
         resolved_path = shutil.which(app_path)
         if resolved_path:
             app_path = resolved_path
-    
+
     try:
         # Only validate if it looks like a path (has separators or is absolute)
         if os.path.sep in app_path or "\\" in app_path or os.path.isabs(app_path):
             validate_path(app_path)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    cmd = ["wine", app_path]
+
+    # Intelligently prepend 'wine'
+    is_windows = any(
+        app_path.lower().endswith(ext) for ext in [".exe", ".bat", ".msi", ".cmd"]
+    )
+    if not is_windows and not os.path.isabs(app_path):
+        # If it's a naked filename, check if it's a Linux utility first
+        if shutil.which(app_path):
+            cmd = [app_path]
+        else:
+            cmd = ["wine", app_path]
+    elif is_windows:
+        cmd = ["wine", app_path]
+    else:
+        # Absolute path, if not .exe, assume Linux
+        cmd = [app_path]
+
     if data.args:
         import shlex
+
         cmd.extend(shlex.split(data.args))
-    
+
     if data.detach:
         proc = subprocess.Popen(cmd, start_new_session=True)
         manage_process(proc)
         return {"status": "detached", "pid": proc.pid}
-    
+
     result = safe_command(cmd, timeout=30)
     if not result["ok"]:
         return {
             "status": "failed",
             "exit_code": result.get("exit_code"),
             "stdout": result.get("stdout", ""),
-            "stderr": result.get("stderr", "") or result.get("error", "App failed")
+            "stderr": result.get("stderr", "") or result.get("error", "App failed"),
         }
     return {
         "status": "finished",
         "stdout": result["stdout"],
-        "stderr": result.get("stderr", "")
+        "stderr": result.get("stderr", ""),
     }
 
 
@@ -101,14 +117,14 @@ async def run_ahk(data: AHKModel):
     """Run an AHK script."""
     if not await broker.check_access():
         raise HTTPException(status_code=423, detail="Agent control denied by policy")
-    
+
     session_dir = ensure_session_dir()
     script_id = uuid.uuid4().hex[:8]
     script_path = os.path.join(session_dir, "scripts", f"run_{script_id}.ahk")
     os.makedirs(os.path.dirname(script_path), exist_ok=True)
     with open(script_path, "w") as f:
         f.write(data.script)
-    
+
     cmd = ["ahk", to_wine_path(script_path)]
     result = safe_command(cmd, timeout=30)
     return {"status": "ok", "stdout": result.get("stdout")}
@@ -167,10 +183,9 @@ async def take_screenshot(output_dir: Optional[str] = None):
         raise HTTPException(status_code=500, detail="Screenshot failed")
 
     from fastapi.responses import FileResponse
+
     return FileResponse(
-        filepath,
-        media_type="image/png",
-        headers={"X-Screenshot-Path": filepath}
+        filepath, media_type="image/png", headers={"X-Screenshot-Path": filepath}
     )
 
 

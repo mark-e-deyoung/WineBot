@@ -9,9 +9,6 @@ mkdir -p artifacts
 rm -rf artifacts/sessions
 mkdir -p artifacts/sessions
 
-echo "--> Running Unit Tests..."
-PYTHONPATH=. python3 tests/test_recorder_unit.py
-
 echo "--> Running Integration Test (using docker directly)..."
 
 # Build image
@@ -25,12 +22,13 @@ container_id=$(docker run -d \
     --name winebot-test \
     -e MODE=headless \
     -e WINEBOT_RECORD=1 \
+    -e ENABLE_API=1 \
     -e SCREEN=1920x1080x24 \
     -e DISPLAY=:99 \
     -v "$REPO_ROOT/artifacts:/artifacts" \
     -v "$REPO_ROOT/apps:/apps" \
     winebot:test \
-    /entrypoint.sh cmd /c timeout 15)
+    /entrypoint.sh sleep 60)
 
 trap "docker rm -f winebot-test >/dev/null 2>&1 || true" EXIT
 
@@ -38,12 +36,17 @@ echo "Container ID: $container_id"
 
 # Give it a moment to start and stabilize
 echo "Waiting for startup..."
-sleep 5
+sleep 15
 
 echo "Injecting annotations..."
 docker exec winebot-test scripts/annotate.sh --text "Hello World" --pos "100,100,200,50" --type overlay
 
 sleep 5
+
+echo "Stopping recording..."
+docker exec winebot-test scripts/winebotctl recording stop
+
+sleep 2
 
 echo "Stopping container..."
 docker stop winebot-test

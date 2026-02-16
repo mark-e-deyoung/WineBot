@@ -7,8 +7,12 @@ import selectors
 import signal
 import time
 import subprocess
-import time
 from typing import Optional
+
+try:
+    from api.core.versioning import EVENT_SCHEMA_VERSION
+except ImportError:
+    EVENT_SCHEMA_VERSION = "1.0"
 
 DEFAULT_LAYER = "x11"
 DEFAULT_SOURCE = "x11_core"
@@ -77,7 +81,9 @@ def now_payload(session_id: Optional[str]) -> dict:
 
 def check_xinput_test() -> bool:
     try:
-        result = subprocess.run(["xinput", "--help"], capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ["xinput", "--help"], capture_output=True, text=True, check=False
+        )
         return result.returncode == 0
     except Exception:
         return False
@@ -110,12 +116,18 @@ def parse_stream(stream, session_id: Optional[str], motion_sample_ms: int):
         else:
             button_match = BUTTON_RE.match(line)
             if button_match:
-                event = "button_press" if button_match.group(1) == "press" else "button_release"
+                event = (
+                    "button_press"
+                    if button_match.group(1) == "press"
+                    else "button_release"
+                )
                 payload["button"] = int(button_match.group(2))
             else:
                 key_match = KEY_RE.match(line)
                 if key_match:
-                    event = "key_press" if key_match.group(1) == "press" else "key_release"
+                    event = (
+                        "key_press" if key_match.group(1) == "press" else "key_release"
+                    )
                     payload["keycode"] = int(key_match.group(2))
 
         if not event:
@@ -137,7 +149,9 @@ def parse_stream(stream, session_id: Optional[str], motion_sample_ms: int):
 
 def run_xinput(args):
     try:
-        result = subprocess.run(["xinput"] + args, capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ["xinput"] + args, capture_output=True, text=True, check=False
+        )
         return result.returncode, result.stdout or "", result.stderr or ""
     except Exception:
         return 1, "", ""
@@ -238,7 +252,11 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
             fallback_name = info.get("fallback_name")
 
             prefer_fallback = False
-            if device_name and "Virtual core" in device_name and fallback_id is not None:
+            if (
+                device_name
+                and "Virtual core" in device_name
+                and fallback_id is not None
+            ):
                 prefer_fallback = True
 
             if prefer_fallback and fallback_id is not None:
@@ -275,7 +293,7 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                         "name": device_name,
                         "proc": proc,
                         "spec": spec,
-                    }
+                    },
                 )
                 return proc
 
@@ -291,7 +309,9 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                         err.write(f"xinput test '{spec}' succeeded after fallback.\n")
                         err.flush()
                     return
-                err.write(f"xinput test '{spec}' exited early; trying next candidate.\n")
+                err.write(
+                    f"xinput test '{spec}' exited early; trying next candidate.\n"
+                )
                 err.flush()
                 try:
                     selector.unregister(proc.stdout)
@@ -347,11 +367,16 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                             continue
                         event = None
                         payload = {
+                            "schema_version": EVENT_SCHEMA_VERSION,
                             "source": DEFAULT_SOURCE,
                             "layer": DEFAULT_LAYER,
                             "origin": "unknown",
                             "tool": DEFAULT_TOOL,
-                            "device": {"id": meta.get("id"), "name": meta.get("name"), "spec": meta.get("spec")},
+                            "device": {
+                                "id": meta.get("id"),
+                                "name": meta.get("name"),
+                                "spec": meta.get("spec"),
+                            },
                         }
                         motion_match = MOTION_RE.match(line)
                         if motion_match:
@@ -366,12 +391,20 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                         else:
                             button_match = BUTTON_RE.match(line)
                             if button_match:
-                                event = "button_press" if button_match.group(1) == "press" else "button_release"
+                                event = (
+                                    "button_press"
+                                    if button_match.group(1) == "press"
+                                    else "button_release"
+                                )
                                 payload["button"] = int(button_match.group(2))
                             else:
                                 key_match = KEY_RE.match(line)
                                 if key_match:
-                                    event = "key_press" if key_match.group(1) == "press" else "key_release"
+                                    event = (
+                                        "key_press"
+                                        if key_match.group(1) == "press"
+                                        else "key_release"
+                                    )
                                     payload["keycode"] = int(key_match.group(2))
 
                         if not event:
@@ -383,7 +416,10 @@ def run_trace(session_dir: str, motion_sample_ms: int) -> int:
                         seq += 1
 
                         if event == "motion" and motion_sample_ms > 0:
-                            if payload["timestamp_epoch_ms"] - last_motion_ms < motion_sample_ms:
+                            if (
+                                payload["timestamp_epoch_ms"] - last_motion_ms
+                                < motion_sample_ms
+                            ):
                                 continue
                             last_motion_ms = payload["timestamp_epoch_ms"]
 

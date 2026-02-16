@@ -16,9 +16,9 @@ All Python packages for the API, Tracing, and Testing must be pinned to exact ve
 - **Constraint:** Use `==` for all top-level packages.
 
 ## 4. Windows Automation Tools
-External Windows binaries (AutoIt, AHK, Python Embedded) must be downloaded from versioned URLs.
+External Windows binaries (AutoIt, AHK, Python Embedded) must be downloaded from versioned URLs and verified against a hardcoded SHA256 checksum.
 - **Mechanism:** `windows-tools/download_tools.sh`
-- **Constraint:** No "latest" or redirect-based URLs without explicit version tags in the filename or path.
+- **Constraint:** Build must fail if a hash mismatch is detected. No "latest" or redirect-based URLs without explicit version tags and hashes.
 
 ## 5. Continuous Integration (GitHub Actions)
 All external actions used in `.github/workflows/` must be pinned to specific commit SHAs rather than mutable tags.

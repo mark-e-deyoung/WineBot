@@ -39,12 +39,40 @@ This file summarizes the main policies currently used by WineBot and where each 
 - Enforcement:
   - `.github/workflows/release.yml`
 
+### 5. Data Retention Policy
+- Automatically purges old session artifacts to prevent disk exhaustion.
+- Enforcement:
+  - `api/server.py` (Background monitor)
+  - `api/utils/files.py` (Cleanup logic)
+- Reference:
+  - `policy/data-retention-policy.md`
+
+### 6. Binary Trust & Integrity Policy
+- Requires SHA256 verification for all external Windows tools.
+- Enforcement:
+  - `windows-tools/download_tools.sh` (Build-time check)
+- Reference:
+  - `policy/dependency-policy.md`
+
+### 7. Least Privilege Policy
+- restricts filesystem access for automation scripts.
+- Enforcement:
+  - `compose/docker-compose.yml` (Read-only volume mounts)
+
 ## Documented Process/Standards Policies
 
-### 5. Dependency and Version Pinning Policy
+### 8. Dependency and Version Pinning Policy
 - Requires pinned versions/digests for reproducibility and security.
 - Reference:
   - `policy/dependency-policy.md`
+
+### 9. Containerized Tooling Policy
+- Requires all testing, linting, and building to happen inside Docker containers.
+- Enforcement:
+  - `scripts/bin/smoke-test.sh`
+  - CI Workflows
+- Reference:
+  - `policy/containerized-tooling-policy.md`
 
 ### 6. Security Hardening Policy Notes
 - Security hardening guidance and backlog:
@@ -58,6 +86,14 @@ This file summarizes the main policies currently used by WineBot and where each 
 ### 8. Licensing Policy
 - Project license terms are defined in:
   - `LICENSE`
+
+### 10. Visual Style & User Experience Policy
+- Defines the 'Cyber-Industrial Dark' aesthetic and UX standards (Responsiveness, A11y).
+- Enforcement:
+  - CSS Variables audit.
+  - Manual UX review.
+- Reference:
+  - `policy/visual-style-and-ux-policy.md`
 
 ## Policy Prompts and Draft Artifacts
 

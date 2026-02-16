@@ -1,9 +1,10 @@
 # Build Intents
 
-WineBot supports four build intents controlled by `BUILD_INTENT`:
+WineBot supports five build intents controlled by `BUILD_INTENT`:
 
 - `dev`: developer-focused image with extra diagnostics tooling.
 - `test`: CI/local validation image with test harnesses.
+- `slim`: lightweight CI/integration image (excludes 1.4GB prefix template).
 - `rel`: release image for end users with runtime essentials and support diagnostics.
 - `rel-runner`: release automation runner for agents/automation only (non-interactive).
 
@@ -62,6 +63,11 @@ WineBot supports four build intents controlled by `BUILD_INTENT`:
 - `test`:
   - includes `/tests`
   - no extra dev package set
+  - default `WINEBOT_LOG_LEVEL=INFO`
+- `slim`:
+  - excludes 1.4GB `/opt/winebot/prefix-template`
+  - includes all application code and Linux-side dependencies
+  - default intent for CI integration jobs
   - default `WINEBOT_LOG_LEVEL=INFO`
 - `rel`:
   - excludes `/tests`

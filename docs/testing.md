@@ -50,6 +50,39 @@ By default the smoke test leaves services running. To stop them:
 
 For CI, prefer `--full --cleanup` and set `API_TOKEN` if security is enforced.
 
+## UI/UX Quality Tests
+
+The dashboard's visual integrity and behavioral correctness are verified using Playwright:
+
+`pytest -v tests/e2e/test_ux_quality.py`
+
+This suite enforces:
+- **Functional Sync:** UI reflects backend process failures (e.g., stopping Xvfb triggers "Issues Detected").
+- **Responsive Design:** Control panel correctly transitions to a mobile drawer on small viewports.
+- **Feedback Loops:** Actions like taking a screenshot trigger visible Toast notifications.
+- **Visual Baselines:** Captures masked snapshots for regression review.
+
+## Local Developer Guardrails
+
+To maintain high standards and fast-fail basic errors before they reach CI:
+
+### Pre-commit Hooks
+Install `pre-commit` and run `pre-commit install` to enable automated linting (`ruff`, `mypy`) and shell validation (`shellcheck`) before every commit.
+
+### Watch Mode (Fast Iteration)
+Use the dev-watch tool to automatically run tests as you save files:
+
+`./scripts/bin/dev-watch.sh`
+
+## CI Pipeline (GitHub Actions)
+
+The CI workflow is split into two distinct stages:
+
+1.  **Pre-flight (Fast):** Runs linting and unit tests on a native Python runner. Fails in < 1 minute if logic or style errors are detected.
+2.  **Integration (Thorough):** Builds the `slim` Docker image and executes `smoke-test.sh`.
+
+Official releases in `release.yml` additionally execute the full UI/UX quality suite and visual regression checks.
+
 ## Soak Diagnostics
 
 Use the soak checker to watch for unbounded trace/recording growth and memory drift over time:

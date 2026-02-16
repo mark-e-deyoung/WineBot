@@ -11,6 +11,8 @@ x-winebot-env: &winebot_env
   RUN_AUTOMATION: ${RUN_AUTOMATION:-0}
   AUTOMATION_CMD: ${AUTOMATION_CMD:-}
   WINEBOT_RECORD: ${WINEBOT_RECORD:-0}
+  WINEBOT_INPUT_TRACE: ${WINEBOT_INPUT_TRACE:-1}
+  WINEBOT_INPUT_TRACE_WINDOWS: ${WINEBOT_INPUT_TRACE_WINDOWS:-1}
   WINEBOT_INPUT_TRACE_RECORD: ${WINEBOT_INPUT_TRACE_RECORD:-0}
   WINEBOT_INPUT_TRACE_NETWORK: ${WINEBOT_INPUT_TRACE_NETWORK:-0}
   WINEBOT_INPUT_TRACE_NETWORK_SAMPLE_MS: ${WINEBOT_INPUT_TRACE_NETWORK_SAMPLE_MS:-10}
@@ -49,8 +51,8 @@ x-winebot-base: &winebot_base
   image: winebot:${WINEBOT_IMAGE_VERSION:-local}-${BUILD_INTENT:-rel}
   volumes:
     - wineprefix:/wineprefix
-    - ../apps:/apps
-    - ../automation/assets:/automation/assets
+    - ../apps:/apps:ro
+    - ../automation/assets:/automation/assets:ro
     - ../artifacts:/artifacts
 
 services:
@@ -61,9 +63,7 @@ services:
     environment:
       <<: *winebot_env
       MODE: headless
-    ports:
-      - "8000:8000"
-      - "5353:5353/udp"
+    ports: []
 
   winebot-interactive:
     <<: *winebot_base
@@ -80,6 +80,43 @@ services:
       - "5900:5900"
       - "6080:6080"
       - "${WINEDBG_PORT:-2345}:${WINEDBG_PORT:-2345}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  test-runner:
+    build:
+      context: ../
+      dockerfile: tests/e2e/Dockerfile
+    profiles:
+      - test
+    entrypoint: []
+    depends_on:
+      winebot-interactive:
+        condition: service_healthy
+    environment:
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - API_URL=http://winebot-interactive:8000
+    volumes:
+      - ..:/work
+      - ../artifacts:/output
+    command: >
+      bash -c "sleep 15 && pytest -v -s tests/test_api.py tests/test_input_validation.py tests/e2e"
+
+  lint-runner:
+    build:
+      context: ../
+      dockerfile: tests/e2e/Dockerfile
+    profiles:
+      - lint
+    entrypoint: []
+    volumes:
+      - ..:/work
+    command: >
+      bash -c "ruff check . && mypy api automation"
 
 volumes:
   wineprefix:

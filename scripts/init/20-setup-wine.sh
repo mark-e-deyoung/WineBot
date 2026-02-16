@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +e
 # 20-setup-wine.sh: Wine Prefix, Theme, and VNC services
 
 # VNC/noVNC
@@ -37,10 +38,9 @@ if [ "${ENABLE_VNC:-0}" = "1" ] || [ "${MODE:-headless}" = "interactive" ]; then
     else
         VNC_ARGS+=("-nopw")
     fi
-    x11vnc "${VNC_ARGS[@]}" > "$SESSION_DIR/logs/x11vnc.log" 2>&1
-    # We point --web to a dummy dir so it only acts as a proxy, not a file server (API handles UI)
-    mkdir -p /tmp/empty-web
-    websockify --web /tmp/empty-web "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT}" > "$SESSION_DIR/logs/websockify.log" 2>&1 &
+    x11vnc "${VNC_ARGS[@]}" > "$SESSION_DIR/logs/x11vnc.log" 2>&1 &
+    # We point --web to /usr/share/novnc so it can serve the standalone client
+    websockify --web /usr/share/novnc "${NOVNC_PORT:-6080}" "localhost:${VNC_PORT}" > "$SESSION_DIR/logs/websockify.log" 2>&1 &
 fi
 
 # Wine Prefix
@@ -62,6 +62,8 @@ fi
 
 echo "--> Ensuring wineserver is running..."
 wineserver -p >/dev/null 2>&1 &
+wineserver -w
+echo "--> wineserver is ready."
 sleep 2
 
 run_wine_setup_step() {
@@ -102,4 +104,7 @@ pkill -f "start.exe" || true
 # wineserver -k removed
 sleep 1
 wineserver -p >/dev/null 2>&1 &
+
+echo "--> Pass 3 complete."
+set -e
 # wineserver -w removed (blocking)

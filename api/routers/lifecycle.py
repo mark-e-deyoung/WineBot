@@ -21,7 +21,7 @@ from api.utils.files import (
     write_session_state,
     recorder_running,
     read_session_state,
-    validate_path
+    validate_path,
 )
 from api.utils.process import safe_command, find_processes
 from api.core.recorder import stop_recording
@@ -37,24 +37,39 @@ router = APIRouter(tags=["lifecycle"])
 
 def graceful_wine_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
     results = {}
-    append_lifecycle_event(session_dir, "wine_shutdown_requested", "Requesting Wine shutdown", source="api")
+    append_lifecycle_event(
+        session_dir, "wine_shutdown_requested", "Requesting Wine shutdown", source="api"
+    )
     wineboot = safe_command(["wineboot", "--shutdown"], timeout=10)
     results["wineboot"] = wineboot
     if wineboot.get("ok"):
-        append_lifecycle_event(session_dir, "wine_shutdown_complete", "Wine shutdown complete", source="api")
+        append_lifecycle_event(
+            session_dir,
+            "wine_shutdown_complete",
+            "Wine shutdown complete",
+            source="api",
+        )
     else:
-        append_lifecycle_event(session_dir, "wine_shutdown_failed", "Wine shutdown failed", source="api", extra=wineboot)
+        append_lifecycle_event(
+            session_dir,
+            "wine_shutdown_failed",
+            "Wine shutdown failed",
+            source="api",
+            extra=wineboot,
+        )
     wineserver = safe_command(["wineserver", "-k"], timeout=5)
     results["wineserver"] = wineserver
     if wineserver.get("ok"):
         append_lifecycle_event(
-            session_dir, "wineserver_killed", "wineserver -k completed",
-            source="api"
+            session_dir, "wineserver_killed", "wineserver -k completed", source="api"
         )
     else:
         append_lifecycle_event(
-            session_dir, "wineserver_kill_failed", "wineserver -k failed",
-            source="api", extra=wineserver
+            session_dir,
+            "wineserver_kill_failed",
+            "wineserver -k failed",
+            source="api",
+            extra=wineserver,
         )
     return results
 
@@ -62,8 +77,10 @@ def graceful_wine_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
 def graceful_component_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
     results = {}
     append_lifecycle_event(
-        session_dir, "component_shutdown_requested",
-        "Stopping UI/VNC components", source="api"
+        session_dir,
+        "component_shutdown_requested",
+        "Stopping UI/VNC components",
+        source="api",
     )
     components = [
         ("novnc_proxy", ["pkill", "-TERM", "-f", "novnc_proxy"]),
@@ -84,16 +101,17 @@ def graceful_component_shutdown(session_dir: Optional[str]) -> Dict[str, Any]:
             )
         else:
             append_lifecycle_event(
-                session_dir, f"{name}_stop_failed", f"{name} stop failed",
-                source="api", extra=result
+                session_dir,
+                f"{name}_stop_failed",
+                f"{name} stop failed",
+                source="api",
+                extra=result,
             )
     return results
 
 
 def _shutdown_process(
-    session_dir: Optional[str],
-    delay: float,
-    sig: int = signal.SIGTERM
+    session_dir: Optional[str], delay: float, sig: int = signal.SIGTERM
 ) -> None:
     time.sleep(delay)
     append_lifecycle_event(
@@ -116,11 +134,7 @@ def _shutdown_process(
         os._exit(0)
 
 
-def schedule_shutdown(
-    session_dir: Optional[str],
-    delay: float,
-    sig: int
-) -> None:
+def schedule_shutdown(session_dir: Optional[str], delay: float, sig: int) -> None:
     append_lifecycle_event(
         session_dir,
         "shutdown_scheduled",
@@ -129,9 +143,7 @@ def schedule_shutdown(
         extra={"signal": sig, "delay": delay},
     )
     thread = threading.Thread(
-        target=_shutdown_process,
-        args=(session_dir, delay, sig),
-        daemon=True
+        target=_shutdown_process, args=(session_dir, delay, sig), daemon=True
     )
     thread.start()
     try:
@@ -147,28 +159,30 @@ def schedule_shutdown(
 async def lifecycle_status():
     """Detailed lifecycle status including process checks."""
     from api.routers.health import health_check
-    
+
     # Base health
     status = health_check()
-    
+
     # Process details
     processes = {
-        "xvfb": {"ok": len(find_processes("Xvfb", exact=True)) > 0},
-        "openbox": {"ok": len(find_processes("openbox", exact=True)) > 0},
-        "x11vnc": {"ok": len(find_processes("x11vnc", exact=True)) > 0},
-        "novnc": {"ok": len(find_processes("websockify")) > 0}, # Check websockify as proxy
+        "xvfb": {"ok": len(find_processes("Xvfb", exact=False)) > 0},
+        "openbox": {"ok": len(find_processes("openbox", exact=False)) > 0},
+        "x11vnc": {"ok": len(find_processes("x11vnc", exact=False)) > 0},
+        "novnc": {
+            "ok": len(find_processes("websockify")) > 0
+        },  # Check websockify as proxy
         "wine_explorer": {"ok": len(find_processes("explorer.exe")) > 0},
         "wineserver": {"ok": len(find_processes("wineserver")) > 0},
     }
-    
+
     session_dir = read_session_dir()
-    
+
     return {
         **status,
         "session_id": os.path.basename(session_dir) if session_dir else None,
         "session_dir": session_dir,
         "user_dir": os.getenv("WINEBOT_USER_DIR"),
-        "processes": processes
+        "processes": processes,
     }
 
 
@@ -212,6 +226,7 @@ def lifecycle_events(limit: int = 100):
         pass
     return {"events": events}
 
+
 @router.post("/lifecycle/shutdown")
 async def lifecycle_shutdown(
     delay: float = 0.5,
@@ -220,9 +235,13 @@ async def lifecycle_shutdown(
 ):
     """Gracefully stop components and terminate the container process."""
     session_dir = read_session_dir()
-    append_lifecycle_event(session_dir, "shutdown_requested", "Shutdown requested via API", source="api")
+    append_lifecycle_event(
+        session_dir, "shutdown_requested", "Shutdown requested via API", source="api"
+    )
     if power_off:
-        append_lifecycle_event(session_dir, "power_off", "Immediate shutdown requested", source="api")
+        append_lifecycle_event(
+            session_dir, "power_off", "Immediate shutdown requested", source="api"
+        )
         tail_kill = safe_command(["pkill", "-9", "-f", "tail -f /dev/null"])
         append_lifecycle_event(
             session_dir,
@@ -251,20 +270,28 @@ async def lifecycle_shutdown(
     response["component_shutdown"] = component_result
     return response
 
+
 @router.post("/lifecycle/reset_workspace")
 async def reset_workspace():
     """Force Wine desktop to be maximized and undecorated."""
     # Start explorer if missing
     if not find_processes("explorer"):
-        subprocess.Popen(["wine", "explorer.exe"], 
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+        subprocess.Popen(
+            ["wine", "explorer.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         await asyncio.sleep(3)
 
     # Force geometry update (mostly for windowed mode now)
-    subprocess.run(["xdotool", "search", "--class", "explorer", "windowmove", "0", "0"], capture_output=True)
-    
+    subprocess.run(
+        ["xdotool", "search", "--class", "explorer", "windowmove", "0", "0"],
+        capture_output=True,
+    )
+
     return {"status": "ok", "message": "Workspace reset requested"}
+
 
 @router.get("/sessions")
 def list_sessions(root: Optional[str] = None, limit: int = 100):
@@ -277,8 +304,8 @@ def list_sessions(root: Optional[str] = None, limit: int = 100):
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if not os.path.exists(root_dir):
-         return {"root": root_dir, "sessions": []}
-    
+        return {"root": root_dir, "sessions": []}
+
     current_session = read_session_dir()
     entries = []
     for name in os.listdir(root_dir):
@@ -304,10 +331,9 @@ def list_sessions(root: Optional[str] = None, limit: int = 100):
     entries.sort(key=lambda item: item.get("last_modified_epoch", 0), reverse=True)
     return {"root": root_dir, "sessions": entries[:limit]}
 
+
 @router.post("/sessions/suspend")
-async def suspend_session(
-    data: Optional[SessionSuspendModel] = Body(default=None)
-):
+async def suspend_session(data: Optional[SessionSuspendModel] = Body(default=None)):
     """Suspend a session without terminating the container."""
     if data is None:
         data = SessionSuspendModel()
@@ -315,9 +341,9 @@ async def suspend_session(
     try:
         session_id_part = data.session_id or data.session_dir
         session_dir = (
-            resolve_session_dir(
-                data.session_id, data.session_dir, data.session_root
-            ) if session_id_part else current_session
+            resolve_session_dir(data.session_id, data.session_dir, data.session_root)
+            if session_id_part
+            else current_session
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -326,8 +352,11 @@ async def suspend_session(
     if not os.path.isdir(session_dir):
         raise HTTPException(status_code=404, detail="Session directory not found")
 
-    if (data.stop_recording and session_dir == current_session and
-            recorder_running(session_dir)):
+    if (
+        data.stop_recording
+        and session_dir == current_session
+        and recorder_running(session_dir)
+    ):
         try:
             await stop_recording()
         except Exception:
@@ -336,20 +365,17 @@ async def suspend_session(
         graceful_wine_shutdown(session_dir)
     write_session_state(session_dir, "suspended")
     append_lifecycle_event(
-        session_dir, "session_suspended", "Session suspended via API",
-        source="api"
+        session_dir, "session_suspended", "Session suspended via API", source="api"
     )
     return {
         "status": "suspended",
         "session_dir": session_dir,
-        "session_id": os.path.basename(session_dir)
+        "session_id": os.path.basename(session_dir),
     }
 
 
 @router.post("/sessions/resume")
-async def resume_session(
-    data: Optional[SessionResumeModel] = Body(default=None)
-):
+async def resume_session(data: Optional[SessionResumeModel] = Body(default=None)):
     """Resume an existing session directory."""
     if data is None:
         data = SessionResumeModel()
@@ -378,8 +404,10 @@ async def resume_session(
                 pass
         write_session_state(current_session, "suspended")
         append_lifecycle_event(
-            current_session, "session_suspended", "Session suspended via API",
-            source="api"
+            current_session,
+            "session_suspended",
+            "Session suspended via API",
+            source="api",
         )
         if data.restart_wine:
             graceful_wine_shutdown(current_session)

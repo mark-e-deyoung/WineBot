@@ -49,6 +49,10 @@ class UserIntentModel(BaseModel):
 class ClickModel(BaseModel):
     x: int
     y: int
+    button: int = 1
+    window_title: Optional[str] = None
+    window_id: Optional[str] = None
+    relative: bool = False
 
 
 class AHKModel(BaseModel):

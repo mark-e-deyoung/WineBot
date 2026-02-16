@@ -21,13 +21,15 @@ If you only have `docker-compose` v1 installed, replace `docker compose` with `d
 `BUILD_INTENT` controls packaged capabilities and defaults independently from compose profiles:
 
 - profiles select runtime UX (`headless`/`interactive`)
-- build intent selects image intent (`dev`/`test`/`rel`/`rel-runner`)
+- build intent selects image intent (`dev`/`test`/`slim`/`rel`/`rel-runner`)
 
 Examples:
 
 `BUILD_INTENT=dev docker compose -f compose/docker-compose.yml --profile interactive up --build`
 
-`BUILD_INTENT=test docker compose -f compose/docker-compose.yml --profile headless up --build`
+`BUILD_INTENT=slim docker compose -f compose/docker-compose.yml --profile headless up --build`
+
+`slim` is a lightweight image that skips the 1.4GB pre-warmed prefix template, ideal for CI and rapid logic verification.
 
 `BUILD_INTENT=rel docker compose -f compose/docker-compose.yml --profile headless up --build`
 
@@ -272,6 +274,7 @@ Use the `Base Image` workflow to publish versioned base images:
 - `docs/architecture.md`
 - `docs/automation.md`
 - `docs/api.md`
+- `policy/visual-style-and-ux-policy.md`
 - `docs/debugging.md`
 - `docs/build-intents.md`
 - `docs/installing-apps.md`

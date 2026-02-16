@@ -5,26 +5,33 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
 import asyncio
-from api.routers import (
-    health,
-    lifecycle,
-    input,
-    recording,
-    control,
-    automation
+
+try:
+    import uvloop
+
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except ImportError:
+    pass
+
+from api.routers import health, lifecycle, input, recording, control, automation
+from api.utils.files import (
+    read_session_dir,
+    append_lifecycle_event,
+    cleanup_old_sessions,
+    link_wine_user_dir,
 )
-from api.utils.files import read_session_dir, append_lifecycle_event
 from api.utils.process import process_store
 from api.core.discovery import discovery_manager
 from api.core.versioning import (
     API_VERSION,
     ARTIFACT_SCHEMA_VERSION,
-    EVENT_SCHEMA_VERSION
+    EVENT_SCHEMA_VERSION,
 )
 
 
 NOVNC_CORE_DIR = "/usr/share/novnc/core"
 NOVNC_VENDOR_DIR = "/usr/share/novnc/vendor"
+
 
 def _load_version():
     try:
@@ -33,17 +40,35 @@ def _load_version():
     except Exception:
         return "v0.9.0-dev"
 
+
 VERSION = _load_version()
+
 
 async def resource_monitor_task():
     """Background task to reap zombies and monitor disk usage."""
-    # (Simplified for now, full logic was in server.py)
+    cleanup_counter = 0
     while True:
         # Reap zombie processes
         for proc in list(process_store):
             if proc.poll() is not None:
                 process_store.discard(proc)
+
+        # Periodic session cleanup (every 60 seconds)
+        cleanup_counter += 5
+        if cleanup_counter >= 60:
+            cleanup_counter = 0
+            try:
+                max_s = os.getenv("WINEBOT_MAX_SESSIONS")
+                ttl_d = os.getenv("WINEBOT_SESSION_TTL_DAYS")
+                cleanup_old_sessions(
+                    max_sessions=int(max_s) if max_s else None,
+                    ttl_days=int(ttl_d) if ttl_d else None,
+                )
+            except Exception:
+                pass
+
         await asyncio.sleep(5)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,6 +76,12 @@ async def lifespan(app: FastAPI):
     append_lifecycle_event(
         session_dir, "api_started", "API server started", source="api"
     )
+
+    # Ensure wine user link is active
+    if session_dir and os.path.isdir(session_dir):
+        user_dir = os.path.join(session_dir, "user")
+        os.makedirs(user_dir, exist_ok=True)
+        link_wine_user_dir(user_dir)
 
     # Start Discovery
     try:
@@ -77,7 +108,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="WineBot API",
     description="Internal API for controlling WineBot",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -92,9 +123,7 @@ async def add_version_headers(request: Request, call_next):
 
 
 if os.path.isdir(NOVNC_CORE_DIR):
-    app.mount(
-        "/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core"
-    )
+    app.mount("/ui/core", StaticFiles(directory=NOVNC_CORE_DIR), name="novnc-core")
 if os.path.isdir(NOVNC_VENDOR_DIR):
     app.mount(
         "/ui/vendor", StaticFiles(directory=NOVNC_VENDOR_DIR), name="novnc-vendor"
@@ -104,18 +133,13 @@ if os.path.isdir(NOVNC_VENDOR_DIR):
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_token_logic(
-    request: Request,
-    api_key: str = Security(api_key_header)
-):
+async def verify_token_logic(request: Request, api_key: str = Security(api_key_header)):
     if request.url.path.startswith("/ui"):
         return api_key
     expected_token = os.getenv("API_TOKEN")
     if expected_token:
         if not api_key or api_key != expected_token:
-            raise HTTPException(
-                status_code=403, detail="Invalid or missing API Token"
-            )
+            raise HTTPException(status_code=403, detail="Invalid or missing API Token")
     return api_key
 
 
@@ -128,6 +152,7 @@ app.include_router(input.router)
 app.include_router(recording.router)
 app.include_router(control.router)
 app.include_router(automation.router)
+
 
 @app.get("/version")
 def get_version():
@@ -142,6 +167,7 @@ def get_version():
 @app.get("/ui")
 def dashboard_redirect():
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/ui/")
 
 
@@ -151,7 +177,7 @@ def dashboard():
     UI_INDEX = os.path.join(UI_DIR, "index.html")
     if not os.path.exists(UI_INDEX):
         raise HTTPException(status_code=404, detail="Dashboard not available")
-    
+
     headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",

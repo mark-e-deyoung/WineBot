@@ -37,7 +37,9 @@ def read_png_text(path):
                 key, rest = chunk.split(b"\x00", 1)
                 comp_data = rest[1:]
                 try:
-                    meta[key.decode()] = zlib.decompress(comp_data).decode(errors="replace")
+                    meta[key.decode()] = zlib.decompress(comp_data).decode(
+                        errors="replace"
+                    )
                 except Exception:
                     pass
             if ctype == "IEND":

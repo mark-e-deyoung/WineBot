@@ -1,38 +1,44 @@
 import os
 import threading
-import time
-from unittest.mock import patch, MagicMock
+import asyncio
+import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from api.server import app
-from api.core.models import SessionResumeModel, SessionSuspendModel
+from api.core.broker import InputBroker
+from api.core.models import ControlMode
 
 client = TestClient(app)
+
 
 def test_sessions_resume_concurrent_calls_idempotent(tmp_path):
     session_dir = tmp_path / "session-1"
     session_dir.mkdir()
     (session_dir / "session.json").write_text("{}")
-    
+
     results = []
-    
+
     # Mocking utilities used in resume_session
     def invoke_resume():
         with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
             response = client.post(
                 "/sessions/resume",
                 json={"session_dir": str(session_dir)},
-                headers={"X-API-Key": "test-token"}
+                headers={"X-API-Key": "test-token"},
             )
             results.append(response.json()["status"])
 
-    with patch("api.routers.lifecycle.read_session_dir", side_effect=[None, str(session_dir), str(session_dir)]):
+    with patch(
+        "api.routers.lifecycle.read_session_dir",
+        side_effect=[None, str(session_dir), str(session_dir)],
+    ):
         with patch("api.routers.lifecycle.write_session_dir"):
             with patch("api.routers.lifecycle.write_session_state"):
                 with patch("api.routers.lifecycle.append_lifecycle_event"):
                     with patch("api.routers.lifecycle.link_wine_user_dir"):
                         with patch("api.routers.lifecycle.ensure_user_profile"):
-                            with patch("api.routers.lifecycle.broker.update_session") as mock_update:
-                                # We'll use a lock to simulate the race if there was one, 
+                            with patch("api.routers.lifecycle.broker.update_session"):
+                                # We'll use a lock to simulate the race if there was one,
                                 # but lifecycle.py doesn't have an explicit lock for resume yet.
                                 # Let's see if we can trigger multiple calls.
                                 t1 = threading.Thread(target=invoke_resume)
@@ -42,66 +48,69 @@ def test_sessions_resume_concurrent_calls_idempotent(tmp_path):
                                 t1.join()
                                 t2.join()
 
-    # If both succeed, one might be "resumed" and another "already_active" 
+    # If both succeed, one might be "resumed" and another "already_active"
     # depending on when read_session_dir is called.
     assert "resumed" in results
     assert len(results) == 2
+
 
 def test_sessions_suspend_no_active_session():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         with patch("api.routers.lifecycle.read_session_dir", return_value=None):
             response = client.post(
-                "/sessions/suspend",
-                headers={"X-API-Key": "test-token"}
+                "/sessions/suspend", headers={"X-API-Key": "test-token"}
             )
     assert response.status_code == 404
     assert response.json()["detail"] == "No active session to suspend"
+
 
 def test_sessions_resume_non_existent_dir():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         response = client.post(
             "/sessions/resume",
             json={"session_dir": "/artifacts/sessions/nonexistent"},
-            headers={"X-API-Key": "test-token"}
+            headers={"X-API-Key": "test-token"},
         )
     assert response.status_code == 404
     assert response.json()["detail"] == "Session directory not found"
+
 
 def test_sessions_resume_path_not_allowed():
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
         response = client.post(
             "/sessions/resume",
             json={"session_dir": "/etc/passwd"},
-            headers={"X-API-Key": "test-token"}
+            headers={"X-API-Key": "test-token"},
         )
     assert response.status_code == 400
     assert "Path not allowed" in response.json()["detail"]
 
+
 def test_lifecycle_shutdown_power_off(tmp_path):
     session_dir = tmp_path / "active-session"
     session_dir.mkdir()
-    
+
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
-        with patch("api.routers.lifecycle.read_session_dir", return_value=str(session_dir)):
+        with patch(
+            "api.routers.lifecycle.read_session_dir", return_value=str(session_dir)
+        ):
             with patch("api.routers.lifecycle.append_lifecycle_event"):
-                with patch("api.routers.lifecycle.safe_command", return_value={"ok": True}):
-                    with patch("api.routers.lifecycle.schedule_shutdown") as mock_sched:
-                        response = client.post(
+                with patch(
+                    "api.routers.lifecycle.safe_command", return_value={"ok": True}
+                ):
+                    with patch("api.routers.lifecycle.schedule_shutdown"):
+                        client.post(
                             "/lifecycle/shutdown?power_off=true",
-                            headers={"X-API-Key": "test-token"}
+                            headers={"X-API-Key": "test-token"},
                         )
-    
-import asyncio
-import pytest
-from api.core.broker import InputBroker
-from api.core.models import ControlMode, UserIntent
+
 
 @pytest.mark.anyio
 async def test_broker_concurrency_renew_vs_revoke():
     broker = InputBroker()
     await broker.update_session("test", interactive=True)
     await broker.grant_agent(10)
-    
+
     # Simulate concurrent renew and user activity (revoke)
     # renewals should fail if revoke wins
     async def task_renew():
@@ -110,16 +119,16 @@ async def test_broker_concurrency_renew_vs_revoke():
             return "renewed"
         except Exception:
             return "failed"
-            
+
     async def task_revoke():
         await broker.report_user_activity()
         return "revoked"
 
     results = await asyncio.gather(task_renew(), task_revoke())
-    
+
     state = broker.get_state()
     assert state.control_mode == ControlMode.USER
-    # One of them must have happened first. 
+    # One of them must have happened first.
     # If revoke happened first, renew fails.
     # If renew happened first, revoke still works and final state is USER.
     assert "revoked" in results

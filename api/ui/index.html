@@ -29,7 +29,7 @@
     body {
       margin: 0;
       font-family: "Space Grotesk", "Sora", "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: radial-gradient(1200px 700px at 10% 10%, #142028 0%, #0b1114 65%);
+      background: radial-gradient(1200px 700px at 10% 10%, #142028 0%, var(--bg) 65%);
       color: var(--text);
     }
 
@@ -45,35 +45,223 @@
       min-height: 0;
     }
 
-    #vnc-container {
-      flex: 0 0 75%;
+    #vnc-viewport {
+      flex: 1;
       min-width: 0;
       position: relative;
       display: flex;
-      align-items: flex-start;
-      justify-content: flex-start;
-      background: linear-gradient(135deg, #0b1114 0%, #0f1a20 60%, #0c1419 100%);
+      flex-direction: column;
+      background: linear-gradient(135deg, var(--bg) 0%, #0f1a20 60%, #0c1419 100%);
       border-right: 1px solid var(--border);
+    }
+
+    /* Floating Toolbar */
+    .vnc-toolbar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      padding: 6px;
+      background: rgba(18, 26, 31, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      z-index: 20;
+      opacity: 0.4;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .vnc-toolbar:hover {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    .vnc-toolbar button {
+      background: transparent;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      border-radius: 8px;
+    }
+
+    .vnc-toolbar button:hover {
+      background: var(--panel-2);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .vnc-toolbar .separator {
+      width: 1px;
+      background: var(--border);
+      margin: 4px 2px;
+    }
+
+    /* Toasts */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 12px 20px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+      color: var(--text);
+      font-size: 0.9rem;
+      min-width: 280px;
+      max-width: 450px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      animation: toast-in 0.3s ease forwards;
+      pointer-events: auto;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .toast.error { border-left-color: var(--danger); }
+    .toast.warn { border-left-color: var(--warn); }
+
+    /* Thumbnails */
+    .artifact-thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .artifact-thumb {
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      position: relative;
+    }
+
+    .artifact-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.2s;
+    }
+
+    .artifact-thumb:hover img {
+      transform: scale(1.1);
+    }
+
+    /* Dev Mode Toggles */
+    .dev-only {
+      display: none !important;
+    }
+
+    body.dev-mode .dev-only {
+      display: block !important;
+    }
+
+    body.dev-mode [data-collapsible].dev-only {
+        display: block !important;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+
+    .mode-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.7rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+    }
+
+    /* System Summary */
+    #system-summary {
+        margin-bottom: 12px;
+    }
+
+    .summary-card {
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(77, 208, 161, 0.08);
+        border: 1px solid rgba(77, 208, 161, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .summary-card.issues {
+        background: rgba(255, 107, 107, 0.08);
+        border-color: rgba(255, 107, 107, 0.2);
+    }
+
+    .summary-icon {
+        font-size: 1.2rem;
+    }
+
+    .summary-text {
+        flex: 1;
+    }
+
+    .summary-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text);
+    }
+
+    .summary-detail {
+        font-size: 0.75rem;
+        color: var(--muted);
+    }
+
+    #vnc-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
       overflow: auto;
+      position: relative;
       pointer-events: auto;
       touch-action: none;
     }
 
     #vnc-container canvas {
       outline: none;
-      width: auto !important;
-      height: auto !important;
-      max-width: none !important;
-      max-height: none !important;
+      width: auto;
+      height: auto;
+      max-width: none;
+      max-height: none;
       display: block;
       pointer-events: auto;
     }
 
     #vnc-crosshair {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: 0;
+      left: 0;
       pointer-events: none;
       z-index: 100;
       display: none;
@@ -551,20 +739,54 @@
     @media (max-width: 980px) {
       #app {
         flex-direction: column;
+        overflow: hidden;
       }
 
-      #vnc-container,
-      #control-panel {
-        flex: 0 0 auto;
-        width: 100%;
-      }
-
-      #vnc-container {
-        min-height: 55vh;
+      #vnc-viewport {
+        flex: 1;
+        min-height: 40vh;
       }
 
       #control-panel {
-        max-height: 40vh;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 85vw;
+        max-width: 360px;
+        z-index: 500;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: -10px 0 40px rgba(0,0,0,0.5);
+      }
+
+      #control-panel.open {
+        transform: translateX(0);
+      }
+
+      .mobile-menu-btn {
+          display: flex !important;
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          z-index: 600;
+          width: 44px;
+          height: 44px;
+          align-items: center;
+          justify-content: center;
+          background: var(--accent);
+          color: #000;
+          border-radius: 50%;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+
+      .mobile-menu-btn::before {
+          content: "☰";
+          font-size: 1.2rem;
+      }
+
+      #control-panel.open ~ .mobile-menu-btn::before {
+          content: "✕";
       }
 
       .badge-grid {
@@ -574,27 +796,59 @@
   </style>
 </head>
 <body>
+  <div id="toast-container"></div>
+  <button class="mobile-menu-btn" style="display:none;" id="mobile-menu-toggle"></button>
   <div id="dashboard">
     <div id="app">
-      <section id="vnc-container">
-        <canvas id="vnc-crosshair"></canvas>
-        <div class="vnc-overlay">
+      <section id="vnc-viewport">
+        <div id="vnc-container">
+          <canvas id="vnc-crosshair"></canvas>
+        </div>
+        
+        <!-- Floating Toolbar -->
+        <div class="vnc-toolbar" data-playwright-ignore>
+          <button id="toolbar-reconnect" title="Reconnect VNC">🔄</button>
+          <div class="separator"></div>
+          <button id="toolbar-scale" title="Toggle Scaling">⤧</button>
+          <button id="toolbar-viewonly" title="Toggle View Only">👁</button>
+          <div class="separator"></div>
+          <button id="toolbar-focus" title="Force Focus">🎯</button>
+          <button id="toolbar-inject" title="Inject Last Click" disabled>🖱</button>
+        </div>
+
+        <div class="vnc-overlay" data-playwright-ignore>
           <div class="vnc-title">Live Session</div>
           <div id="badge-vnc" class="badge">connecting...</div>
         </div>
-        <div class="vnc-overlay vnc-overlay-right">
+        <div class="vnc-overlay vnc-overlay-right" data-playwright-ignore>
           <div class="vnc-title">WineBot</div>
-          <div class="badge" id="badge-version">Release v0.8.0-18-g48f5d13-dirty · Commit 48f5d13</div>
+          <div class="badge" id="badge-version">...</div>
         </div>
       </section>
 
       <aside id="control-panel">
       <div class="panel-header">
-        <h1>WineBot Dashboard</h1>
-        <p>Control the session and check system health.</p>
+        <div>
+            <h1>WineBot</h1>
+            <p>Automation Control Center</p>
+        </div>
+        <label class="mode-toggle">
+            <input type="checkbox" id="dev-mode-checkbox" hidden />
+            <span id="dev-mode-label">Dev Mode</span>
+        </label>
       </div>
 
-      <div class="panel-section" data-collapsible>
+      <div id="system-summary">
+          <div class="summary-card" id="health-summary-card">
+              <div class="summary-icon" id="health-summary-icon">●</div>
+              <div class="summary-text">
+                  <div class="summary-title" id="health-summary-title">System Initializing</div>
+                  <div class="summary-detail" id="health-summary-detail">Connecting to WineBot API...</div>
+              </div>
+          </div>
+      </div>
+
+      <div class="panel-section dev-only" data-collapsible>
         <div class="section-title">
           <span>Configuration</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
@@ -646,7 +900,7 @@
               <span>View Only</span>
             </label>
           </div>
-          <div class="config-block">
+          <div class="config-block dev-only">
             <label class="toggle">
               <input type="checkbox" id="vnc-trace-input" />
               <span>Trace Input (client)</span>
@@ -662,7 +916,7 @@
         </div>
       </div>
 
-      <div class="panel-section" data-collapsible>
+      <div class="panel-section dev-only" data-collapsible>
         <div class="section-title">
           <span>Input Debug</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
@@ -673,7 +927,7 @@
         </div>
       </div>
 
-      <div class="panel-section" data-collapsible>
+      <div class="panel-section dev-only" data-collapsible>
         <div class="section-title">
           <span>Lifecycle</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
@@ -695,14 +949,25 @@
 
       <div class="panel-section" data-collapsible>
         <div class="section-title">
-          <span>Quick Actions</span>
+          <span>Actions & Artifacts</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
         </div>
         <div class="panel-body">
           <div class="button-row">
             <button id="btn-screenshot">Capture Screenshot</button>
-            <button id="btn-screenshot-download" class="secondary">Download Screenshot</button>
+            <button id="btn-screenshot-download" class="secondary">Download</button>
           </div>
+          
+          <div id="artifacts-panel" style="margin-top: 14px;">
+            <div class="section-title">Recent Screenshots</div>
+            <div id="artifacts-thumbs" class="artifact-thumb-grid">
+                <!-- Thumbs go here -->
+            </div>
+            <div id="artifacts-list" class="events-list" style="margin-top: 10px;">
+              <div class="hint">No artifacts found yet.</div>
+            </div>
+          </div>
+
           <div id="recording-panel" style="margin-top: 14px;">
             <div class="section-title">Recording</div>
           <div class="button-row">
@@ -712,18 +977,12 @@
             <button id="btn-record-stop" class="danger">Stop</button>
           </div>
           </div>
-          <div id="artifacts-panel" style="margin-top: 14px;">
-            <div class="section-title">Recent Artifacts</div>
-            <div id="artifacts-list" class="events-list">
-              <div class="hint">No artifacts found yet.</div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div class="panel-section" data-collapsible>
+      <div class="panel-section dev-only" data-collapsible>
         <div class="section-title">
-          <span>Health</span>
+          <span>Health Details</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
         </div>
         <div class="panel-body">
@@ -737,7 +996,7 @@
         </div>
       </div>
 
-      <div class="panel-section" data-collapsible>
+      <div class="panel-section dev-only" data-collapsible>
         <div class="section-title">
           <span>API Console</span>
           <button class="section-toggle" type="button" aria-expanded="true">▾</button>
@@ -840,6 +1099,64 @@
     const inputDebugLog = document.getElementById("input-debug-log");
     const vncCrosshair = document.getElementById("vnc-crosshair");
     let crosshairCtx = null;
+
+    // Toast logic
+    function showToast(message, type = "info", duration = 4000) {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(-20px)";
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    // Dev Mode logic
+    const mobileMenuToggle = document.getElementById("mobile-menu-toggle");
+    const controlPanel = document.getElementById("control-panel");
+    
+    if (mobileMenuToggle && controlPanel) {
+        mobileMenuToggle.onclick = () => {
+            controlPanel.classList.toggle("open");
+        };
+        // Close on backdrop click (clicking the VNC area)
+        document.getElementById("vnc-viewport").onclick = () => {
+            if (controlPanel.classList.contains("open")) {
+                controlPanel.classList.remove("open");
+            }
+        };
+    }
+
+    const DEV_MODE_KEY = "winebot_dev_mode";
+    const devModeCheckbox = document.getElementById("dev-mode-checkbox");
+    const devModeLabel = document.getElementById("dev-mode-label");
+
+    function setDevMode(enabled) {
+      if (enabled) {
+        document.body.classList.add("dev-mode");
+        devModeLabel.textContent = "Dev Mode: ON";
+        devModeLabel.style.color = "var(--accent)";
+      } else {
+        document.body.classList.remove("dev-mode");
+        devModeLabel.textContent = "Dev Mode: OFF";
+        devModeLabel.style.color = "var(--muted)";
+      }
+      localStorage.setItem(DEV_MODE_KEY, enabled ? "1" : "0");
+      devModeCheckbox.checked = enabled;
+    }
+
+    devModeCheckbox.addEventListener("change", () => setDevMode(devModeCheckbox.checked));
+    setDevMode(localStorage.getItem(DEV_MODE_KEY) === "1");
+
+    // Toolbar logic
+    document.getElementById("toolbar-reconnect").onclick = () => { showToast("Reconnecting VNC..."); restartVnc(); };
+    document.getElementById("toolbar-scale").onclick = () => { vncScaleToggle.click(); showToast(`Scaling ${vncScaleToggle.checked ? "enabled" : "disabled"}`); };
+    document.getElementById("toolbar-viewonly").onclick = () => { vncViewOnlyToggle.click(); showToast(`View-only ${vncViewOnlyToggle.checked ? "enabled" : "disabled"}`); };
+    document.getElementById("toolbar-focus").onclick = () => forceAppFocus();
+    document.getElementById("toolbar-inject").onclick = () => vncInjectBtn.click();
 
     if (vncCrosshair) {
         crosshairCtx = vncCrosshair.getContext("2d");
@@ -1148,7 +1465,7 @@
 
 
     function resetVncCanvas() {
-      const canvases = vncContainer.querySelectorAll("canvas");
+      const canvases = vncContainer.querySelectorAll("canvas:not(#vnc-crosshair)");
       canvases.forEach((canvas) => canvas.remove());
       vncTraceCanvas = null;
     }
@@ -1356,9 +1673,9 @@
 
     async function updateArtifacts(activeSessionId) {
       if (!artifactsList) return;
+      const thumbContainer = document.getElementById("artifacts-thumbs");
       
       try {
-        // 1. Get list of all sessions to find recent history
         const sessionsRes = await apiFetch("/sessions?limit=3");
         let targetSessions = [];
         if (sessionsRes.ok) {
@@ -1366,18 +1683,16 @@
             targetSessions = sessionsData.sessions || [];
         }
         
-        // If we have an active session, ensure it's in the list
         if (activeSessionId && !targetSessions.find(s => s.session_id === activeSessionId)) {
             targetSessions.unshift({ session_id: activeSessionId });
         }
 
         if (targetSessions.length === 0) {
           artifactsList.innerHTML = '<div class="hint">No artifacts found yet.</div>';
+          if (thumbContainer) thumbContainer.innerHTML = "";
           return;
         }
 
-        // 2. Fetch artifacts from the most recent sessions (limit to top 1 for performance, or aggregate)
-        // For simplicity/performance, we focus on the MOST RECENT session (active or not)
         const primarySession = targetSessions[0]; 
         const res = await apiFetch(`/sessions/${primarySession.session_id}/artifacts`);
         if (!res.ok) return;
@@ -1392,9 +1707,21 @@
           f.path.endsWith(".log")
         ).sort((a, b) => b.mtime - a.mtime);
 
+        // Update Thumbnails
+        if (thumbContainer) {
+            const screenshots = filtered.filter(f => f.path.endsWith(".png")).slice(0, 4);
+            if (screenshots.length === 0) {
+                thumbContainer.innerHTML = "";
+            } else {
+                thumbContainer.innerHTML = screenshots.map(f => `
+                    <div class="artifact-thumb" title="${f.path}" onclick="window.open('/sessions/${primarySession.session_id}/artifacts/${f.path}', '_blank')">
+                        <img src="/sessions/${primarySession.session_id}/artifacts/${f.path}" loading="lazy" />
+                    </div>
+                `).join("");
+            }
+        }
+
         artifactsList.innerHTML = "";
-        
-        // Header
         const header = document.createElement("div");
         header.className = "hint";
         header.textContent = `Session: ${primarySession.session_id}`;
@@ -1413,7 +1740,7 @@
         filtered.forEach(f => {
           const div = document.createElement("div");
           div.style.display = "flex";
-          div.style.justify_content = "space-between";
+          div.style.justifyContent = "space-between";
           div.style.gap = "8px";
           div.style.marginBottom = "4px";
 
@@ -1437,6 +1764,39 @@
       } catch (err) {}
     }
 
+    function refreshHealthSummary(healthData, lifecycleData, x11Data) {
+        const card = document.getElementById("health-summary-card");
+        const icon = document.getElementById("health-summary-icon");
+        const title = document.getElementById("health-summary-title");
+        const detail = document.getElementById("health-summary-detail");
+        
+        const isHealthy = healthData?.status === "ok";
+        const processes = lifecycleData?.processes || {};
+        const criticalDown = Object.entries(processes).filter(([name, proc]) => 
+            ["xvfb", "openbox", "x11vnc", "novnc", "wineserver"].includes(name) && !proc.ok
+        );
+        
+        if (criticalDown.length > 0) {
+            card.classList.add("issues");
+            icon.textContent = "⚠️";
+            icon.style.color = "var(--danger)";
+            title.textContent = "System Issues Detected";
+            detail.textContent = `Critical processes down: ${criticalDown.map(d => d[0]).join(", ")}`;
+        } else if (!isHealthy) {
+            card.classList.add("issues");
+            icon.textContent = "●";
+            icon.style.color = "var(--warn)";
+            title.textContent = "Degraded Performance";
+            detail.textContent = "Some background services are reporting warnings.";
+        } else {
+            card.classList.remove("issues");
+            icon.textContent = "●";
+            icon.style.color = "var(--ok)";
+            title.textContent = "System Operational";
+            detail.textContent = `All services running. Session: ${lifecycleData?.session_id || "Active"}`;
+        }
+    }
+
     async function updateDashboard() {
       if (!versionLoaded) updateVersion();
       try {
@@ -1456,6 +1816,9 @@
 
         const healthData = healthRes ? await safeJson(healthRes) : null;
         const lifecycleData = lifecycleRes ? await safeJson(lifecycleRes) : null;
+        const x11Data = x11Res ? await safeJson(x11Res) : null;
+
+        refreshHealthSummary(healthData, lifecycleData, x11Data);
         
         // Fetch control state if session is active
         let controlState = null;
@@ -1487,11 +1850,9 @@
              updateCrosshair(0, 0, false);
         }
 
-        const x11Data = x11Res ? await safeJson(x11Res) : null;
         const windowsData = windowsRes ? await safeJson(windowsRes) : null;
         const recordingData = recordingRes ? await safeJson(recordingRes) : null;
         const storageData = storageRes ? await safeJson(storageRes) : null;
-        const lifecycleData = lifecycleRes ? await safeJson(lifecycleRes) : null;
         const eventsData = eventsRes ? await safeJson(eventsRes) : null;
         const clientTraceData = clientTraceRes ? await safeJson(clientTraceRes) : null;
 
@@ -1757,7 +2118,7 @@
     }
 
     async function takeScreenshot({ download } = { download: false }) {
-      logMessage("info", download ? "Capturing screenshot for download..." : "Capturing screenshot...");
+      showToast(download ? "Preparing download..." : "Capturing screenshot...");
       try {
         const response = await apiFetch("/screenshot");
         if (!response.ok) {
@@ -1766,27 +2127,30 @@
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const savedPath = response.headers.get("X-Screenshot-Path");
-        const metaPath = response.headers.get("X-Screenshot-Metadata-Path");
         const message = savedPath
-          ? `Screenshot saved in session: ${savedPath}${metaPath ? ` (metadata: ${metaPath})` : ""}`
-          : "Screenshot saved in session.";
+          ? `Screenshot saved: ${savedPath.split('/').pop()}`
+          : "Screenshot captured.";
+        
+        showToast(message, "ok");
+        
         const filename = `winebot_${Date.now()}.png`;
         if (download) {
           const anchor = document.createElement("a");
           anchor.href = url;
           anchor.download = filename;
           anchor.click();
-          logMessage("info", `${message} Downloaded to your computer as ${filename}.`);
         } else {
           logMessage("info", message, { link: url, linkLabel: "Download", downloadName: filename });
         }
+        updateArtifacts(statusSnapshot.sessionId);
       } catch (err) {
+        showToast(err.message, "error");
         logMessage("error", `Screenshot error: ${err.message}`);
       }
     }
 
     async function postRecordingAction(action) {
-      logMessage("info", `Recording ${action} requested.`);
+      showToast(`Recording ${action}...`);
       
       // Optimistic UI update
       const allBtns = [recordStartBtn, recordPauseBtn, recordResumeBtn, recordStopBtn];
@@ -1799,12 +2163,12 @@
           throw new Error(`Recording ${action} failed: ${response.status}`);
         }
         const data = await response.json();
-        logMessage("info", `Recording ${action}: ${data.status || "ok"}`);
+        showToast(`Recording ${action} successful`, "ok");
         // Trigger immediate poll to confirm state
         setTimeout(runPoll, 500);
       } catch (err) {
+        showToast(err.message, "error");
         logMessage("error", `Recording ${action} error: ${err.message}`);
-        // Revert UI on error (next poll will fix it anyway, but fast feedback is good)
         updateDashboard(); 
       }
     }
@@ -2079,8 +2443,9 @@
         }
         
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const wsUrl = `${protocol}://${vncHost}:${vncPort}/`;
+        const wsUrl = `${protocol}://${vncHost}:${vncPort}/websockify`;
         console.log(`Attempting to connect to VNC at: ${wsUrl}`);
+        logMessage("info", `Connecting VNC to ${wsUrl}...`);
         
         let connectionTimeout = setTimeout(() => {
             if (!vncConnected) {
@@ -2102,10 +2467,11 @@
           clearTimeout(connectionTimeout);
           setBadge(badgeVnc, "connected", "ok");
           vncConnected = true;
+          showToast("Live session connected", "ok");
           if (typeof rfbInstance.focus === "function") {
             rfbInstance.focus();
           }
-          const canvas = vncContainer.querySelector("canvas");
+          const canvas = vncContainer.querySelector("canvas:not(#vnc-crosshair)");
           if (canvas) {
             vncTraceCanvas = canvas;
             attachVncKeyListeners();
@@ -2117,6 +2483,7 @@
               const vncY = Math.floor(y * (canvas.height / rect.height));
               lastVncClick = { x: vncX, y: vncY };
               vncInjectBtn.disabled = false;
+              document.getElementById("toolbar-inject").disabled = false;
               updateInputDebug(`Mousedown: client(${Math.round(x)},${Math.round(y)}) -> VNC(${vncX},${vncY})`);
               logMessage("info", `Mouse down at client(${Math.round(x)}, ${Math.round(y)}) -> VNC(${vncX}, ${vncY})`);
             });
@@ -2137,6 +2504,7 @@
             canvas.addEventListener("mouseup", (e) => {
               if (!canTraceClientEvent()) return;
               const coords = getCanvasCoords(canvas, e);
+              updateInputDebug(`Mouseup: client(${coords.client_x},${coords.client_y}) -> VNC(${coords.vnc_x},${coords.vnc_y})`);
               postClientTraceEvent({
                 event: "client_mouse_up",
                 button: e.button,
@@ -2206,6 +2574,7 @@
             logMessage("info", "VNC password sent.");
           } else {
             setBadge(badgeVnc, "password required", "warn");
+            showToast("VNC password required", "warn");
             logMessage("warn", "VNC password required.");
           }
         });

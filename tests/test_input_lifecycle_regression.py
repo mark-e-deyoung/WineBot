@@ -65,7 +65,9 @@ def test_lifecycle_events_tail_ignores_invalid_json(tmp_path):
     _write_jsonl(log_path, rows)
 
     with patch.dict(os.environ, {"API_TOKEN": "test-token"}):
-        with patch("api.routers.lifecycle.read_session_dir", return_value=str(session_dir)):
+        with patch(
+            "api.routers.lifecycle.read_session_dir", return_value=str(session_dir)
+        ):
             response = client.get(
                 "/lifecycle/events?limit=3",
                 headers={"X-API-Key": "test-token"},
@@ -101,7 +103,9 @@ def test_input_trace_start_concurrent_calls_spawn_once(tmp_path):
 
     with patch("api.routers.input.input_trace_running", side_effect=fake_running):
         with patch("api.routers.input.input_trace_pid", return_value=4242):
-            with patch("api.routers.input.subprocess.Popen", side_effect=fake_popen) as mock_popen:
+            with patch(
+                "api.routers.input.subprocess.Popen", side_effect=fake_popen
+            ) as mock_popen:
                 with patch("api.routers.input.manage_process"):
                     with patch("api.routers.input.append_lifecycle_event"):
                         t1 = threading.Thread(target=invoke_start)
@@ -134,7 +138,9 @@ def test_input_trace_stop_concurrent_calls_stop_once(tmp_path):
         results.append(result["status"])
 
     with patch("api.routers.input.input_trace_running", side_effect=fake_running):
-        with patch("api.routers.input.safe_command", side_effect=fake_safe_command) as mock_safe:
+        with patch(
+            "api.routers.input.safe_command", side_effect=fake_safe_command
+        ) as mock_safe:
             with patch("api.routers.input.append_lifecycle_event"):
                 t1 = threading.Thread(target=invoke_stop)
                 t2 = threading.Thread(target=invoke_stop)
@@ -145,4 +151,3 @@ def test_input_trace_stop_concurrent_calls_stop_once(tmp_path):
 
     assert mock_safe.call_count == 1
     assert sorted(results) == ["already_stopped", "stopped"]
-

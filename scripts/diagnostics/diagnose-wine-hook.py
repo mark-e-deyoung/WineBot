@@ -22,7 +22,12 @@ WM_MBUTTONUP = 0x0208
 WM_MOUSEWHEEL = 0x020A
 WM_MOUSEHWHEEL = 0x020E
 
-ULONG_PTR = getattr(wt, "ULONG_PTR", ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong)
+ULONG_PTR = getattr(
+    wt,
+    "ULONG_PTR",
+    ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong,
+)
+
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
     _fields_ = [
@@ -33,8 +38,10 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
         ("dwExtraInfo", ULONG_PTR),
     ]
 
+
 class POINT(ctypes.Structure):
     _fields_ = [("x", wt.LONG), ("y", wt.LONG)]
+
 
 class MSLLHOOKSTRUCT(ctypes.Structure):
     _fields_ = [
@@ -44,6 +51,7 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
         ("time", wt.DWORD),
         ("dwExtraInfo", ULONG_PTR),
     ]
+
 
 class MSG(ctypes.Structure):
     _fields_ = [
@@ -55,13 +63,19 @@ class MSG(ctypes.Structure):
         ("pt", POINT),
     ]
 
+
 class LASTINPUTINFO(ctypes.Structure):
     _fields_ = [("cbSize", wt.UINT), ("dwTime", wt.DWORD)]
+
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
-LRESULT = getattr(wt, "LRESULT", ctypes.c_longlong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long)
+LRESULT = getattr(
+    wt,
+    "LRESULT",
+    ctypes.c_longlong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long,
+)
 LowLevelProc = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
 
 user32.SetWindowsHookExW.argtypes = [ctypes.c_int, LowLevelProc, wt.HINSTANCE, wt.DWORD]
@@ -92,7 +106,9 @@ FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Low-level keyboard/mouse hook observer")
+    parser = argparse.ArgumentParser(
+        description="Low-level keyboard/mouse hook observer"
+    )
     parser.add_argument("--out", required=True)
     parser.add_argument("--duration", type=float, default=0.0)
     parser.add_argument("--session-id", default="")
@@ -147,15 +163,22 @@ def main():
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         pid = wt.DWORD(0)
         tid = user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        log_event({
-            "event": "focus_state",
-            "hwnd": int(hwnd),
-            "title": title,
-            "class": class_name,
-            "pid": int(pid.value),
-            "tid": int(tid),
-            "rect": {"left": int(rect.left), "top": int(rect.top), "right": int(rect.right), "bottom": int(rect.bottom)},
-        })
+        log_event(
+            {
+                "event": "focus_state",
+                "hwnd": int(hwnd),
+                "title": title,
+                "class": class_name,
+                "pid": int(pid.value),
+                "tid": int(tid),
+                "rect": {
+                    "left": int(rect.left),
+                    "top": int(rect.top),
+                    "right": int(rect.right),
+                    "bottom": int(rect.bottom),
+                },
+            }
+        )
 
     QS_ALLINPUT = 0x04FF
 
@@ -211,23 +234,27 @@ def main():
             vk_code = int(kbd.vkCode)
             vk_name = f"vk{vk_code:02X}"
             if wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                log_event({
-                    "event": "key_down",
-                    "key": vk_name,
-                    "vk": vk_name,
-                    "vk_code": vk_code,
-                    "scan": int(kbd.scanCode),
-                    "flags": int(kbd.flags),
-                })
+                log_event(
+                    {
+                        "event": "key_down",
+                        "key": vk_name,
+                        "vk": vk_name,
+                        "vk_code": vk_code,
+                        "scan": int(kbd.scanCode),
+                        "flags": int(kbd.flags),
+                    }
+                )
             elif wParam in (WM_KEYUP, WM_SYSKEYUP):
-                log_event({
-                    "event": "key_up",
-                    "key": vk_name,
-                    "vk": vk_name,
-                    "vk_code": vk_code,
-                    "scan": int(kbd.scanCode),
-                    "flags": int(kbd.flags),
-                })
+                log_event(
+                    {
+                        "event": "key_up",
+                        "key": vk_name,
+                        "vk": vk_name,
+                        "vk_code": vk_code,
+                        "scan": int(kbd.scanCode),
+                        "flags": int(kbd.flags),
+                    }
+                )
         return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
     def mouse_proc(nCode, wParam, lParam):
@@ -236,31 +263,91 @@ def main():
             if wParam == WM_MOUSEMOVE:
                 log_event({"event": "mouse_move", "x": int(ms.pt.x), "y": int(ms.pt.y)})
             elif wParam == WM_LBUTTONDOWN:
-                log_event({"event": "mouse_down", "button": "left", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_down",
+                        "button": "left",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_LBUTTONUP:
-                log_event({"event": "mouse_up", "button": "left", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_up",
+                        "button": "left",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_RBUTTONDOWN:
-                log_event({"event": "mouse_down", "button": "right", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_down",
+                        "button": "right",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_RBUTTONUP:
-                log_event({"event": "mouse_up", "button": "right", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_up",
+                        "button": "right",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_MBUTTONDOWN:
-                log_event({"event": "mouse_down", "button": "middle", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_down",
+                        "button": "middle",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_MBUTTONUP:
-                log_event({"event": "mouse_up", "button": "middle", "x": int(ms.pt.x), "y": int(ms.pt.y)})
+                log_event(
+                    {
+                        "event": "mouse_up",
+                        "button": "middle",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                    }
+                )
             elif wParam == WM_MOUSEWHEEL:
-                log_event({"event": "mouse_wheel", "x": int(ms.pt.x), "y": int(ms.pt.y), "mouseData": int(ms.mouseData)})
+                log_event(
+                    {
+                        "event": "mouse_wheel",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                        "mouseData": int(ms.mouseData),
+                    }
+                )
             elif wParam == WM_MOUSEHWHEEL:
-                log_event({"event": "mouse_hwheel", "x": int(ms.pt.x), "y": int(ms.pt.y), "mouseData": int(ms.mouseData)})
+                log_event(
+                    {
+                        "event": "mouse_hwheel",
+                        "x": int(ms.pt.x),
+                        "y": int(ms.pt.y),
+                        "mouseData": int(ms.mouseData),
+                    }
+                )
         return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
     keyboard_cb = LowLevelProc(keyboard_proc)
     mouse_cb = LowLevelProc(mouse_proc)
 
     ctypes.set_last_error(0)
-    h_kbd = user32.SetWindowsHookExW(WH_KEYBOARD_LL, keyboard_cb, kernel32.GetModuleHandleW(None), 0)
+    h_kbd = user32.SetWindowsHookExW(
+        WH_KEYBOARD_LL, keyboard_cb, kernel32.GetModuleHandleW(None), 0
+    )
     kbd_err = ctypes.get_last_error()
     ctypes.set_last_error(0)
-    h_mouse = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_cb, kernel32.GetModuleHandleW(None), 0)
+    h_mouse = user32.SetWindowsHookExW(
+        WH_MOUSE_LL, mouse_cb, kernel32.GetModuleHandleW(None), 0
+    )
     mouse_err = ctypes.get_last_error()
 
     if not h_kbd:
@@ -286,7 +373,9 @@ def main():
         ctypes.set_last_error(0)
         thread_id = kernel32.GetCurrentThreadId()
         if not h_kbd:
-            h_kbd = user32.SetWindowsHookExW(WH_KEYBOARD_LL, keyboard_cb, kernel32.GetModuleHandleW(None), thread_id)
+            h_kbd = user32.SetWindowsHookExW(
+                WH_KEYBOARD_LL, keyboard_cb, kernel32.GetModuleHandleW(None), thread_id
+            )
             retry_err = ctypes.get_last_error()
             log_event(
                 {
@@ -299,7 +388,9 @@ def main():
                 }
             )
         if not h_mouse:
-            h_mouse = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_cb, kernel32.GetModuleHandleW(None), thread_id)
+            h_mouse = user32.SetWindowsHookExW(
+                WH_MOUSE_LL, mouse_cb, kernel32.GetModuleHandleW(None), thread_id
+            )
             retry_err = ctypes.get_last_error()
             log_event(
                 {

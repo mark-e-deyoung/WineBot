@@ -118,8 +118,14 @@ jobs:
 
       - name: Capability Check - Recording & Artifacts
         run: |
-          scripts/smoke-test.sh --phase recording --no-build --skip-base-checks --cleanup
+          scripts/smoke-test.sh --phase recording --no-build --skip-base-checks
         timeout-minutes: 10
+
+      - name: UI/UX Policy Enforcement
+        run: |
+          docker compose -f compose/docker-compose.yml --profile interactive --profile test run --rm test-runner \
+            pytest -v tests/e2e/test_ux_quality.py
+        timeout-minutes: 15
 
       - name: Free disk before scan
         run: |

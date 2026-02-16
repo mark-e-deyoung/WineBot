@@ -13,6 +13,7 @@ def run_script(args, env=None):
         env_vars.update(env)
     return subprocess.run([SCRIPT] + args, env=env_vars, capture_output=True, text=True)
 
+
 def read_file_with_wait(path, timeout=1.0):
     deadline = time.time() + timeout
     while time.time() < deadline:

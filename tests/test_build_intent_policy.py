@@ -23,4 +23,6 @@ def test_compose_wires_build_intent():
     assert "target: intent-${BUILD_INTENT:-rel}" in compose
     assert "BASE_IMAGE: ${BASE_IMAGE:-" in compose
     assert "args:" in compose
-    assert "image: winebot:${WINEBOT_IMAGE_VERSION:-local}-${BUILD_INTENT:-rel}" in compose
+    assert (
+        "image: winebot:${WINEBOT_IMAGE_VERSION:-local}-${BUILD_INTENT:-rel}" in compose
+    )

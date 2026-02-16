@@ -1,10 +1,6 @@
 import asyncio
 from api.core.models import RecorderState
-from api.utils.files import (
-    recorder_state,
-    write_recorder_state,
-    recorder_running
-)
+from api.utils.files import recorder_state, write_recorder_state, recorder_running
 from api.utils.process import run_async_command
 
 
@@ -41,10 +37,7 @@ async def stop_recording():
         return {"status": "already_stopped", "session_dir": session_dir}
 
     write_recorder_state(session_dir, RecorderState.STOPPING.value)
-    cmd = [
-        "python3", "-m", "automation.recorder",
-        "stop", "--session-dir", session_dir
-    ]
+    cmd = ["python3", "-m", "automation.recorder", "stop", "--session-dir", session_dir]
     result = await run_async_command(cmd)
     if not result["ok"]:
         # Log error? raise?

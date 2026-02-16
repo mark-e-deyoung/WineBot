@@ -130,7 +130,9 @@ def main():
     else:
         window_id = find_window(args.window_title, args.timeout, args.retry_interval)
     if window_id is None:
-        print(f"Could not find a window matching '{args.window_title}'", file=sys.stderr)
+        print(
+            f"Could not find a window matching '{args.window_title}'", file=sys.stderr
+        )
         return 1
 
     activate_window(window_id)

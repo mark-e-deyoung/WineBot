@@ -2,6 +2,29 @@
 
 The WineBot Dashboard (`api/ui/index.html`) operates as a polling-based state machine that synchronizes with the backend API.
 
+## UI Layers & Visibility
+
+### Developer Mode (Dev Mode)
+*   **State:** Controlled by `localStorage` (`winebot_dev_mode`).
+*   **Behavior:**
+    *   **OFF (Default):** Hides diagnostic sections (*Configuration*, *Input Debug*, *Lifecycle*, *Health Details*, *API Console*) to minimize cognitive load.
+    *   **ON:** Reveals all panels for troubleshooting.
+
+### Floating Toolbar
+*   **Position:** Fixed overlay at bottom-center of the VNC canvas.
+*   **Context:** Viewer-centric actions.
+    *   `🔄 Reconnect`: Restarts noVNC session.
+    *   `⤧ Scale`: Toggles canvas scaling.
+    *   `🎯 Focus`: Force focuses the automation window.
+    *   `🖱 Inject`: Re-plays the last VNC click via API.
+
+### Toast Notifications
+*   **Mechanism:** Non-blocking, stackable overlays at top-center.
+*   **Triggers:**
+    *   Screenshot completion (with direct download link).
+    *   Recording Start/Stop/Pause status.
+    *   VNC Connection/Auth events.
+
 ## Core Loop
 The dashboard runs a `runPoll()` loop typically every 5 seconds (configurable via backoff).
 

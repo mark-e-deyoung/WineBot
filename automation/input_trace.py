@@ -52,8 +52,6 @@ def session_id_from_dir(session_dir: Optional[str]) -> Optional[str]:
     return os.path.basename(session_dir)
 
 
-
-
 def trace_state_path(session_dir: str) -> str:
     return os.path.join(session_dir, TRACE_STATE_FILE)
 
@@ -139,7 +137,7 @@ def input_event_from_xi2(
         "source": "x11",
         "layer": DEFAULT_LAYER,
         "type": event_type,  # Canonical name
-        "event": event_type, # Backwards compat
+        "event": event_type,  # Backwards compat
         "origin": "unknown",
         "tool": DEFAULT_TOOL,
         "device": {
@@ -151,12 +149,12 @@ def input_event_from_xi2(
     }
     if raw_event:
         payload["xi2_raw"] = True
-    
+
     ts = now_ts()
     payload.update(ts)
     payload["t_wall_ms"] = ts["timestamp_epoch_ms"]
     # t_mono_ms is hard to get from python without CLOCK_MONOTONIC sync, using wall for now
-    payload["t_mono_ms"] = ts["timestamp_epoch_ms"] 
+    payload["t_mono_ms"] = ts["timestamp_epoch_ms"]
 
     if current.get("root_x") is not None and current.get("root_y") is not None:
         payload["x"] = current.get("root_x")
@@ -167,14 +165,18 @@ def input_event_from_xi2(
         payload["keycode"] = current.get("detail")
     if current.get("flags"):
         payload["flags"] = current.get("flags")
-    
+
     # Parse modifiers mask (Base X11: Shift=1, Lock=2, Ctrl=4, Mod1=8 ...)
     mods = []
     mask = current.get("modifiers_effective", 0)
-    if mask & 1: mods.append("shift")
-    if mask & 4: mods.append("ctrl")
-    if mask & 8: mods.append("alt") # Mod1
-    if mask & 64: mods.append("meta") # Mod4 often
+    if mask & 1:
+        mods.append("shift")
+    if mask & 4:
+        mods.append("ctrl")
+    if mask & 8:
+        mods.append("alt")  # Mod1
+    if mask & 64:
+        mods.append("meta")  # Mod4 often
     payload["modifiers"] = mods
 
     if include_raw and current.get("raw"):
@@ -203,7 +205,10 @@ def parse_xi2_stream(
                 event = input_event_from_xi2(current, session_id, include_raw, seq)
                 if event:
                     if event["event"] == "motion" and motion_sample_ms > 0:
-                        if event["timestamp_epoch_ms"] - last_motion_ms < motion_sample_ms:
+                        if (
+                            event["timestamp_epoch_ms"] - last_motion_ms
+                            < motion_sample_ms
+                        ):
                             event = None
                         else:
                             last_motion_ms = event["timestamp_epoch_ms"]
@@ -261,7 +266,9 @@ def parse_xi2_stream(
 
 def check_xinput_test_xi2() -> bool:
     try:
-        result = subprocess.run(["xinput", "--help"], capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ["xinput", "--help"], capture_output=True, text=True, check=False
+        )
         help_text = (result.stdout or "") + (result.stderr or "")
         return "test-xi2" in help_text
     except Exception:
@@ -310,7 +317,9 @@ def run_trace(session_dir: str, include_raw: bool, motion_sample_ms: int) -> int
 
         try:
             with open(log_path, "a") as logf:
-                for event in parse_xi2_stream(proc.stdout, session_id, include_raw, motion_sample_ms):
+                for event in parse_xi2_stream(
+                    proc.stdout, session_id, include_raw, motion_sample_ms
+                ):
                     if stop_requested:
                         break
                     logf.write(json.dumps(event) + "\n")
@@ -343,7 +352,9 @@ def stop_trace(session_dir: str) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Trace X11 input events to a JSONL log.")
+    parser = argparse.ArgumentParser(
+        description="Trace X11 input events to a JSONL log."
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     start_p = subparsers.add_parser("start", help="Start input tracing")
@@ -360,7 +371,10 @@ def main():
     args = parser.parse_args()
     session_dir = args.session_dir or read_session_dir()
     if not session_dir:
-        print("No session directory provided and /tmp/winebot_current_session missing.", file=sys.stderr)
+        print(
+            "No session directory provided and /tmp/winebot_current_session missing.",
+            file=sys.stderr,
+        )
         return 1
 
     if args.command == "start":

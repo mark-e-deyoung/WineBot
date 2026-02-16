@@ -6,7 +6,7 @@ from api.utils.process import (
     check_binary,
     safe_command,
     safe_async_command,
-    find_processes
+    find_processes,
 )
 from api.utils.files import statvfs_info, read_session_dir
 from api.core.recorder import recording_status
@@ -15,6 +15,7 @@ from api.core.recorder import recording_status
 router = APIRouter(prefix="/health", tags=["health"])
 
 START_TIME = time.time()
+
 
 def meminfo_summary() -> dict:
     data = {}
@@ -29,6 +30,7 @@ def meminfo_summary() -> dict:
         pass
     return data
 
+
 @router.get("")
 def health_check():
     """High-level health summary."""
@@ -38,17 +40,59 @@ def health_check():
         os.path.join(wineprefix, "system.reg")
     )
 
-    required_tools = [
-        "winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb"
-    ]
+    required_tools = ["winedbg", "gdb", "ffmpeg", "xdotool", "xdpyinfo", "Xvfb"]
     missing = [t for t in required_tools if not check_binary(t)["present"]]
 
     storage_paths = ["/wineprefix", "/artifacts", "/tmp"]
     storage = [statvfs_info(p) for p in storage_paths]
     storage_ok = all(s.get("ok") and s.get("writable", False) for s in storage)
 
+    # Security check: Detect public IP exposure with VNC
+    import socket
+
+    def is_public_ip(ip):
+        if not ip or ip == "127.0.0.1":
+            return False
+        parts = ip.split(".")
+        if len(parts) != 4:
+            return True  # IPv6 or invalid
+        # Private ranges: 10.x, 172.16-31.x, 192.168.x
+        if parts[0] == "10":
+            return False
+        if parts[0] == "192" and parts[1] == "168":
+            return False
+        if parts[0] == "172" and 16 <= int(parts[1]) <= 31:
+            return False
+        return True
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        s.connect(("10.254.254.254", 1))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = "unknown"
+
+    vnc_enabled = os.getenv("ENABLE_VNC", "0") == "1"
+    vnc_password = os.getenv("VNC_PASSWORD")
+    security_warning = None
+    if vnc_enabled:
+        if is_public_ip(local_ip):
+            security_warning = (
+                f"VNC EXPOSED: Container has public IP {local_ip}. Use SSH tunneling."
+            )
+        elif not vnc_password:
+            security_warning = "VNC INSECURE: VNC is enabled without a password."
+
     status = "ok"
-    if not x11.get("ok") or not prefix_ok or missing or not storage_ok:
+    if (
+        not x11.get("ok")
+        or not prefix_ok
+        or missing
+        or not storage_ok
+        or security_warning
+    ):
         status = "degraded"
 
     return {
@@ -58,6 +102,7 @@ def health_check():
         "tools_ok": len(missing) == 0,
         "missing_tools": missing,
         "storage_ok": storage_ok,
+        "security_warning": security_warning,
         "uptime_seconds": int(time.time() - START_TIME),
     }
 
@@ -68,9 +113,7 @@ async def health_environment():
     x11 = await safe_async_command(["xdpyinfo"])
 
     # Wine driver check: This verifies if winex11.drv can actually initialize
-    wine_driver = await safe_async_command(
-        ["wine", "cmd", "/c", "echo Driver Check"]
-    )
+    wine_driver = await safe_async_command(["wine", "cmd", "/c", "echo Driver Check"])
 
     # Process checks
     wm_pids = find_processes("openbox", exact=True)
@@ -100,8 +143,9 @@ async def health_environment():
             "nodrv_detected": nodrv_detected,
             "explorer_running": len(explorer_pids) > 0,
             "stderr": wine_driver.get("stderr") if not driver_ok else None,
-        }
+        },
     }
+
 
 @router.get("/system")
 def health_system():
@@ -134,8 +178,7 @@ async def health_x11():
         "window_manager": {"name": "openbox", "running": len(wm_pids) > 0},
         "active_window": active.get("stdout") if active.get("ok") else None,
         "active_window_error": (
-            None if active.get("ok")
-            else (active.get("error") or active.get("stderr"))
+            None if active.get("ok") else (active.get("error") or active.get("stderr"))
         ),
     }
 
@@ -156,7 +199,8 @@ async def health_windows():
         "windows": windows,
         "active_window": active.get("stdout") if active.get("ok") else None,
         "error": (
-            None if listing.get("ok")
+            None
+            if listing.get("ok")
             else (listing.get("error") or listing.get("stderr"))
         ),
     }
@@ -185,7 +229,8 @@ def health_wine():
             wine_version.get("stdout") if wine_version.get("ok") else None
         ),
         "wine_version_error": (
-            None if wine_version.get("ok")
+            None
+            if wine_version.get("ok")
             else (wine_version.get("error") or wine_version.get("stderr"))
         ),
         "winearch": os.getenv("WINEARCH"),
@@ -196,8 +241,15 @@ def health_wine():
 def health_tools():
     """Presence and paths of key tooling."""
     tools = [
-        "winedbg", "gdb", "ffmpeg", "xdotool", "wmctrl", "xdpyinfo", "Xvfb",
-        "x11vnc", "websockify", "xinput"
+        "winedbg",
+        "gdb",
+        "ffmpeg",
+        "xdotool",
+        "xdpyinfo",
+        "Xvfb",
+        "x11vnc",
+        "websockify",
+        "xinput",
     ]
     details = {name: check_binary(name) for name in tools}
     missing = [name for name, info in details.items() if not info["present"]]
@@ -223,9 +275,7 @@ async def health_recording():
     return {
         "enabled": enabled,
         "session_dir": session_dir,
-        "session_dir_exists": (
-            os.path.isdir(session_dir) if session_dir else False
-        ),
+        "session_dir_exists": (os.path.isdir(session_dir) if session_dir else False),
         "recorder_running": len(recorder_pids) > 0,
         "recorder_pids": [str(p) for p in recorder_pids],
         "state": status["state"],

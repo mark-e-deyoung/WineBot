@@ -2,12 +2,7 @@ import asyncio
 import time
 from fastapi import HTTPException
 
-from api.core.models import (
-    ControlMode,
-    UserIntent,
-    AgentStatus,
-    ControlState
-)
+from api.core.models import ControlMode, UserIntent, AgentStatus, ControlState
 
 
 class InputBroker:
@@ -18,7 +13,7 @@ class InputBroker:
             interactive=False,
             control_mode=ControlMode.USER,
             user_intent=UserIntent.WAIT,
-            agent_status=AgentStatus.IDLE
+            agent_status=AgentStatus.IDLE,
         )
         self.last_user_activity = 0.0
 
@@ -46,7 +41,9 @@ class InputBroker:
     async def renew_agent(self, lease_seconds: int):
         async with self._lock:
             if self.state.control_mode != ControlMode.AGENT:
-                raise HTTPException(status_code=403, detail="Agent does not hold control")
+                raise HTTPException(
+                    status_code=403, detail="Agent does not hold control"
+                )
             if self.state.user_intent == UserIntent.STOP_NOW:
                 raise HTTPException(status_code=403, detail="User requested STOP_NOW")
             self.state.lease_expiry = time.time() + lease_seconds

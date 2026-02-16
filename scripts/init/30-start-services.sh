@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 # 30-start-services.sh: Start API, Tracing, and Supervisor Loop
 
-# Tracing
+echo "--> Pass 4: Service Startup (WINEBOT_INPUT_TRACE_WINDOWS=${WINEBOT_INPUT_TRACE_WINDOWS:-unset})"
+
+# Post-Init Tracing (Ensures wineserver is stable)
 if [ "${WINEBOT_INPUT_TRACE_WINDOWS:-0}" = "1" ]; then
-    WIN_TRACE_MS="${WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS:-10}"
-    # Escape path for Wine (convert / to \)
-    WINE_LOG_PATH="Z:${SESSION_DIR//\//\\}\\logs\\input_events_windows.jsonl"
-    ahk /automation/core/input_trace_windows.ahk "$WINE_LOG_PATH" "$WIN_TRACE_MS" "$SESSION_ID" >/dev/null 2>&1 &
+    echo "--> Post-Init Tracing: AHK hook enabled."
+    sleep 2
+    WIN_TRACE_MS="${WINEBOT_INPUT_TRACE_WINDOWS_SAMPLE_MS:-5}"
+    mkdir -p "$SESSION_DIR/logs"
+    WINE_LOG_PATH=$(winepath -w "$SESSION_DIR/logs/input_events_windows.jsonl")
+    WINE_SCRIPT_PATH=$(winepath -w /automation/core/input_trace_windows.ahk)
+    echo "--> Starting Windows Input Trace..."
+    (
+      while true; do
+        wine "/opt/winebot/windows-tools/AutoHotkey/AutoHotkeyU64.exe" "$WINE_SCRIPT_PATH" "$WINE_LOG_PATH" "$WIN_TRACE_MS" "$SESSION_ID" >> "$SESSION_DIR/logs/ahk_trace.log" 2>&1
+        echo "--> AHK trace exited (RC: $?), restarting in 5s..." >> "$SESSION_DIR/logs/ahk_trace.log"
+        sleep 5
+      done
+    ) &
 fi
 
 if [ "${WINEBOT_INPUT_TRACE:-0}" = "1" ]; then
@@ -75,8 +87,10 @@ if [ "${WINEBOT_SUPERVISE_EXPLORER:-1}" = "1" ]; then
 
         # Ensure windows are managed (silent)
         for title in "Desktop" "Wine Desktop"; do
-          if xdotool search --name "$title" >/dev/null 2>&1; then
-            wmctrl -r "$title" -b remove,undecorated >/dev/null 2>&1 || true
+          wid=$(xdotool search --name "$title" 2>/dev/null | tail -n 1 || true)
+          if [ -n "$wid" ]; then
+            # Undecorate via Motif hints if needed (equivalent to wmctrl -b remove,undecorated)
+            xprop -id "$wid" -f _MOTIF_WM_HINTS 32c -set _MOTIF_WM_HINTS "0x2, 0x0, 0x0, 0x0, 0x0" >/dev/null 2>&1 || true
           fi
         done
         sleep 5
@@ -85,3 +99,4 @@ if [ "${WINEBOT_SUPERVISE_EXPLORER:-1}" = "1" ]; then
 else
     echo "--> Desktop Supervisor disabled (WINEBOT_SUPERVISE_EXPLORER=0)."
 fi
+

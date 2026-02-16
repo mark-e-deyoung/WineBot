@@ -113,7 +113,12 @@ def test_winebotctl_health():
         tmpdir = Path(tmp)
         stub_info = make_curl_stub(
             tmpdir,
-            {"GET http://localhost:8000/health": {"status": 200, "body": {"status": "ok"}}},
+            {
+                "GET http://localhost:8000/health": {
+                    "status": 200,
+                    "body": {"status": "ok"},
+                }
+            },
         )
         env = os.environ.copy()
         env.update(
@@ -192,7 +197,9 @@ def test_winebotctl_recording_start_payload():
         )
         result = run_cli(["recording", "start"], env)
         assert result.returncode == 0
-        body_log = Path(stub_info["body_log"]).read_text(encoding="utf-8").strip().splitlines()
+        body_log = (
+            Path(stub_info["body_log"]).read_text(encoding="utf-8").strip().splitlines()
+        )
         assert body_log
         # The last logged line should be the /recording/start payload.
         method, url, body = body_log[-1].split("\t", 2)

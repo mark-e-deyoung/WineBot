@@ -80,7 +80,9 @@ def parse_keys(keys_csv: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Poll GetAsyncKeyState and log key states to JSONL")
+    parser = argparse.ArgumentParser(
+        description="Poll GetAsyncKeyState and log key states to JSONL"
+    )
     parser.add_argument("--out", required=True)
     parser.add_argument("--duration", type=float, default=10.0)
     parser.add_argument("--interval-ms", type=int, default=50)
@@ -105,12 +107,17 @@ def main():
             for label, vk in keys:
                 state = get_async(int(vk))
                 down = 1 if (state & 0x8000) else 0
-                f.write(json.dumps({
-                    "timestamp_epoch_ms": ts_ms,
-                    "key": label,
-                    "vk": int(vk),
-                    "down": down,
-                }) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "timestamp_epoch_ms": ts_ms,
+                            "key": label,
+                            "vk": int(vk),
+                            "down": down,
+                        }
+                    )
+                    + "\n"
+                )
             f.flush()
             time.sleep(interval)
 

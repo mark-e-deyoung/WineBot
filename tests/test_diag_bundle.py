@@ -16,7 +16,9 @@ def test_diag_bundle_redacts_and_writes_manifest(tmp_path: Path):
     logs = session / "logs"
     logs.mkdir(parents=True)
     (session / "session.json").write_text(json.dumps({"session_id": "abc-123"}))
-    (logs / "api.log").write_text("Authorization: Bearer SECRET123\nX-API-Key: SECRET123\n")
+    (logs / "api.log").write_text(
+        "Authorization: Bearer SECRET123\nX-API-Key: SECRET123\n"
+    )
 
     out = tmp_path / "bundle.tar.gz"
     env = os.environ.copy()
@@ -26,7 +28,8 @@ def test_diag_bundle_redacts_and_writes_manifest(tmp_path: Path):
     subprocess.run(
         [
             "python3",
-                            "scripts/diagnostics/diag_bundle.py",            "--session-dir",
+            "scripts/diagnostics/diag_bundle.py",
+            "--session-dir",
             str(session),
             "--out",
             str(out),
@@ -60,7 +63,8 @@ def test_diag_bundle_size_cap_enforced(tmp_path: Path):
     proc = subprocess.run(
         [
             "python3",
-                            "scripts/diagnostics/diag_bundle.py",            "--session-dir",
+            "scripts/diagnostics/diag_bundle.py",
+            "--session-dir",
             str(session),
             "--out",
             str(out),

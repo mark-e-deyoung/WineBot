@@ -39,7 +39,7 @@ fi
 
 # --- Xvfb Setup ---
 rm -f "/tmp/.X${DISPLAY##*:}-lock" "/tmp/.X11-unix/X${DISPLAY##*:}"
-Xvfb "$DISPLAY" -screen 0 "$SCREEN" -ac +extension RANDR >/dev/null 2>&1 &
+Xvfb "$DISPLAY" -screen 0 "$SCREEN" -ac -noreset +extension RANDR >/dev/null 2>&1 &
 XVFB_PID=$!
 
 echo "--> Waiting for Xvfb on $DISPLAY..."

@@ -18,13 +18,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-SCHEMA_VERSION = "1.0"
+# Try to import centralized version, fallback if running outside environment
+try:
+    from api.core.versioning import SUPPORT_BUNDLE_SCHEMA_VERSION as SCHEMA_VERSION
+except ImportError:
+    SCHEMA_VERSION = "1.0"
+
 REDACTION_VERSION = "1"
 SECRET_KEY_RE = re.compile(
     r"(token|password|secret|api[_-]?key|authorization|cookie|vnc[_-]?password|private[_-]?key)",
     re.IGNORECASE,
 )
-SECRET_VALUE_RE = re.compile(r"(authorization:\s*\S+|bearer\s+\S+|x-api-key:\s*\S+)", re.IGNORECASE)
+SECRET_VALUE_RE = re.compile(
+    r"(authorization:\s*\S+|bearer\s+\S+|x-api-key:\s*\S+)", re.IGNORECASE
+)
 
 
 @dataclass
@@ -77,7 +84,9 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return data
 
 
-def resolve_session_dir(session_dir: str | None, session_id: str | None, session_root: Path) -> Path | None:
+def resolve_session_dir(
+    session_dir: str | None, session_id: str | None, session_root: Path
+) -> Path | None:
     if session_dir:
         p = Path(session_dir)
         return p if p.exists() else None
@@ -115,7 +124,9 @@ def copy_file(src: Path, dst: Path, state: CopyState) -> None:
     shutil.copy2(src, dst)
 
 
-def copy_text_redacted(src: Path, dst: Path, state: CopyState, secrets: set[str]) -> None:
+def copy_text_redacted(
+    src: Path, dst: Path, state: CopyState, secrets: set[str]
+) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     content = src.read_text(errors="ignore")
     redacted = redact_value(content, secrets)
@@ -155,7 +166,11 @@ def build_manifest(root: Path, build_intent: str) -> dict:
         "redaction_version": REDACTION_VERSION,
         "timestamp_utc": utc_now(),
         "build_intent": build_intent,
-        "platform": {"os": platform.system(), "release": platform.release(), "arch": platform.machine()},
+        "platform": {
+            "os": platform.system(),
+            "release": platform.release(),
+            "arch": platform.machine(),
+        },
         "host": socket.gethostname(),
         "files": files,
     }
@@ -173,7 +188,13 @@ def main() -> int:
 
     session_root = Path(args.session_root)
     session_dir = resolve_session_dir(args.session_dir, args.session_id, session_root)
-    out_path = Path(args.out) if args.out else Path(f"/artifacts/support-bundle-{datetime.now().strftime('%Y%m%d-%H%M%S')}.tar.gz")
+    out_path = (
+        Path(args.out)
+        if args.out
+        else Path(
+            f"/artifacts/support-bundle-{datetime.now().strftime('%Y%m%d-%H%M%S')}.tar.gz"
+        )
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="winebot-support-") as td:
@@ -182,14 +203,14 @@ def main() -> int:
         state = CopyState(max_bytes=args.max_mb * 1024 * 1024)
 
         env_map = dict(os.environ)
-        secret_values = {
-            v
-            for k, v in env_map.items()
-            if v and SECRET_KEY_RE.search(k)
-        }
+        secret_values = {v for k, v in env_map.items() if v and SECRET_KEY_RE.search(k)}
 
         # app/version.json
-        version = (Path("/VERSION").read_text().strip() if Path("/VERSION").exists() else "unknown")
+        version = (
+            Path("/VERSION").read_text().strip()
+            if Path("/VERSION").exists()
+            else "unknown"
+        )
         version_payload = {
             "winebot_version": version,
             "build_intent": args.build_intent,
@@ -250,7 +271,9 @@ def main() -> int:
                         copy_text_redacted(p, dst_logs / p.name, state, secret_values)
             notes_lines.append(f"Session source: {session_dir}")
         else:
-            notes_lines.append("No session directory found; bundle contains app/system diagnostics only.")
+            notes_lines.append(
+                "No session directory found; bundle contains app/system diagnostics only."
+            )
 
         notes_lines.append(f"Build intent: {args.build_intent}")
         notes_lines.append(f"Bundle cap bytes: {state.max_bytes}")
@@ -270,7 +293,11 @@ def main() -> int:
             tf.add(bundle_root, arcname="support-bundle")
         tmp_out.replace(out_path)
 
-    print(json.dumps({"status": "ok", "bundle": str(out_path), "build_intent": args.build_intent}))
+    print(
+        json.dumps(
+            {"status": "ok", "bundle": str(out_path), "build_intent": args.build_intent}
+        )
+    )
     return 0
 
 
