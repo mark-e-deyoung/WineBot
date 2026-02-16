@@ -64,15 +64,15 @@ fi
 
 # 2. Infrastructure Setup (Session, X11, WM)
 echo "--> Pass 2: Infrastructure..."
-source /scripts/init/10-setup-infra.sh
+set +e; source /scripts/init/10-setup-infra.sh; set -e
 
 # 3. Wine Environment Setup (Prefix, Theme, VNC)
 echo "--> Pass 3: Wine Environment..."
-source /scripts/init/20-setup-wine.sh
+set +e; source /scripts/init/20-setup-wine.sh; set -e
 
 # 4. Service Startup (API, Recorder, Supervisor)
 echo "--> Pass 4: Services..."
-source /scripts/init/30-start-services.sh
+set +e; source /scripts/init/30-start-services.sh; set -e
 
 if [ "${DEBUG:-0}" = "1" ]; then
     echo "--> DEBUG: Windows automation tool versions..."

@@ -66,13 +66,19 @@ if [ -f "/etc/xdg/openbox/menu.xml" ] && [ ! -f "${OPENBOX_CONFIG_DIR}/menu.xml"
     cp "/etc/xdg/openbox/menu.xml" "${OPENBOX_CONFIG_DIR}/menu.xml"
 fi
 
-openbox --replace >/dev/null 2>&1 &
+  openbox --replace >/dev/null 2>&1 &
+  OPENBOX_PID=$!
+  echo "--> openbox started (PID: $OPENBOX_PID)"
 
-mkdir -p ~/.config/tint2
-if [ -f "/etc/xdg/tint2/tint2rc" ]; then
-    cp "/etc/xdg/tint2/tint2rc" ~/.config/tint2/tint2rc
-fi
-tint2 >/dev/null 2>&1 &
+  mkdir -p ~/.config/tint2
+  if [ -f "/etc/xdg/tint2/tint2rc" ]; then
+      cp "/etc/xdg/tint2/tint2rc" ~/.config/tint2/tint2rc
+  fi
+  tint2 >/dev/null 2>&1 &
+  TINT2_PID=$!
+  echo "--> tint2 started (PID: $TINT2_PID)"
 
-# Allow time for WM/Taskbar windows to map
-sleep 2
+  # Allow time for WM/Taskbar windows to map
+  echo "--> Waiting for WM/Taskbar..."
+  sleep 2
+  echo "--> Infrastructure setup complete."
