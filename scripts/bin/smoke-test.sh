@@ -141,7 +141,7 @@ compose_exec() {
   local profile="$1"
   local service="$2"
   local cmd="$3"
-  "${compose_cmd[@]}" -f "$compose_file" --profile "$profile" exec -T --user winebot "$service" bash -lc "$cmd"
+  "${compose_cmd[@]}" -f "$compose_file" --profile "$profile" exec -T -e DISPLAY=:99 --user winebot "$service" bash -lc "$cmd"
 }
 
 wait_for_windows() {
