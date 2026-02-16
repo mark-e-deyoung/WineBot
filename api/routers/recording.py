@@ -62,10 +62,8 @@ async def start_recording(data: Optional[RecordingStartModel] = Body(default=Non
         if data is None:
             data = RecordingStartModel()
         current_session = read_session_dir()
-        if not current_session:
-             raise HTTPException(status_code=500, detail="No active session")
-             
-        if recorder_running(current_session):
+        
+        if current_session and recorder_running(current_session):
             if recorder_state(current_session) == RecorderState.PAUSED.value:
                 cmd = [
                     "python3",

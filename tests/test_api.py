@@ -86,9 +86,10 @@ def test_openbox_reconfigure(mock_safe, auth_headers):
         assert response.json()["status"] == "reconfigured"
 
 
+@patch("api.routers.recording.read_pid", return_value=123)
 @patch("api.routers.recording.read_session_dir", return_value=None)
 @patch("subprocess.Popen")
-def test_recording_start(mock_popen, mock_read, tmp_path, auth_headers):
+def test_recording_start(mock_popen, mock_read, mock_pid, tmp_path, auth_headers):
     with patch.dict(
         os.environ,
         {
