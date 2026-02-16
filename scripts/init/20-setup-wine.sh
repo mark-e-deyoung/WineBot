@@ -52,6 +52,8 @@ if [ "${INIT_PREFIX:-1}" = "1" ] && [ ! -f "$WINEPREFIX/system.reg" ]; then
     if [ -d "/opt/winebot/prefix-template" ]; then
         echo "--> Populating WINEPREFIX from template..."
         cp -rp /opt/winebot/prefix-template/. "$WINEPREFIX/"
+        echo "--> Prefix contents after population:"
+        ls -la "$WINEPREFIX"
     else
         echo "--> Initializing new WINEPREFIX (Template missing)..."
         export WINEDLLOVERRIDES="mscoree,mshtml="
