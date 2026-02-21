@@ -2,16 +2,16 @@
 set -e
 
 # Versions & Hashes (Pinned for reproducibility and trust)
-AUTOIT_VER="3.3.16.1"
-AUTOIT_SHA256="8b7098c44275d0203c23f2ce56c0e913c0d6b6d2264bc537e8a9f0a9f07badc9"
+AUTOIT_VER="3.3.18.0"
+AUTOIT_SHA256="ceb666a993a9f62621c3a0d4ee602774b2e7f543de1f08ec0380632ee3f89beb"
 AUTOIT_URL="https://www.autoitscript.com/autoit3/files/archive/autoit/autoit-v${AUTOIT_VER}.zip"
 
 AHK_VER="1.1.37.02"
 AHK_SHA256="6f3663f7cdd25063c8c8728f5d9b07813ced8780522fd1f124ba539e2854215f"
 AHK_URL="https://github.com/AutoHotkey/AutoHotkey/releases/download/v${AHK_VER}/AutoHotkey_${AHK_VER}.zip"
 
-PYTHON_VER="3.13.11"
-PYTHON_SHA256="1ec066fb61ba5e8c73e29e048cd07c26850f74585e3a116005135b31b8004890"
+PYTHON_VER="3.13.12"
+PYTHON_SHA256="76f238f606250c87c6beac75dccd35ee99070a13490555936abb6cb64ecce3d0"
 PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VER}/python-${PYTHON_VER}-embed-amd64.zip"
 
 WINSPY_VER="1.8.4"

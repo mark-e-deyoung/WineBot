@@ -43,10 +43,10 @@ x-winebot-base: &winebot_base
     dockerfile: docker/Dockerfile
     target: intent-${BUILD_INTENT:-rel}
     args:
-      BASE_IMAGE: ${BASE_IMAGE:-ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-09}
+      BASE_IMAGE: ${BASE_IMAGE:-ghcr.io/SemperSupra/winebot-base:base-2026-02-09}
       VCS_REF: ${VCS_REF:-local}
       BUILD_DATE: ${BUILD_DATE:-local}
-      SOURCE_REPO: ${SOURCE_REPO:-https://github.com/mark-e-deyoung/WineBot}
+      SOURCE_REPO: ${SOURCE_REPO:-https://github.com/SemperSupra/WineBot}
       BUILD_INTENT: ${BUILD_INTENT:-rel}
   image: winebot:${WINEBOT_IMAGE_VERSION:-local}-${BUILD_INTENT:-rel}
   volumes:

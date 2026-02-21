@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-14  
 **Status:** Baseline after v0.9.3 optimizations  
-**Reference Issues:** [#4](https://github.com/mark-e-deyoung/WineBot/issues/4), [#5](https://github.com/mark-e-deyoung/WineBot/issues/5)
+**Reference Issues:** [#4](https://github.com/SemperSupra/WineBot/issues/4), [#5](https://github.com/SemperSupra/WineBot/issues/5)
 
 ## Overview
 This report characterizes the build time overhead and resource utilization of the WineBot container system. It identifies major bottlenecks and provides a baseline for ongoing optimization efforts.

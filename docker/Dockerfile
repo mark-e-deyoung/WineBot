@@ -1,8 +1,8 @@
 # Pinned to debian:trixie-slim as of 2026-02-08
-ARG BASE_IMAGE=ghcr.io/mark-e-deyoung/winebot-base:base-2026-02-13
+ARG BASE_IMAGE=ghcr.io/SemperSupra/winebot-base:base-2026-02-13
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
-ARG SOURCE_REPO="https://github.com/mark-e-deyoung/WineBot"
+ARG SOURCE_REPO="https://github.com/SemperSupra/WineBot"
 
 # --- Stage 1: Tool Builder ---
 FROM debian:trixie-slim AS tools-builder
@@ -38,7 +38,7 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         imagemagick x11-utils procps ffmpeg \
         ca-certificates curl gosu unzip \
         python3 python3-pip gdb \
-    && curl -sL -o /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/20250102/src/winetricks \
+    && curl -sL -o /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/20260125/src/winetricks \
     && chmod +x /usr/local/bin/winetricks \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

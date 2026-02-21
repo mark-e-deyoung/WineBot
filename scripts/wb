@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# WineBot Unified Lifecycle Entrypoint
+# Inspired by supragoflow './scripts/gg'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+usage() {
+    cat <<EOF
+WineBot Lifecycle Manager
+
+Usage:
+  ./scripts/wb <command> [args]
+
+Commands:
+  bootstrap   Check and initialize development environment
+  lint        Run containerized linting (Ruff, Mypy)
+  test        Run containerized unit/integration tests
+  smoke-test  Run containerized end-to-end smoke tests
+  build       Build WineBot container images
+  vuln        Run vulnerability scan on dependencies/images
+  ctl         Proxy to winebotctl (API control)
+  help        Show this help
+
+Global Options:
+  WINEBOT_ENV  Environment file to load (default: .env)
+EOF
+}
+
+log() {
+    echo ">> [wb] $*"
+}
+
+# 1. Bootstrap
+bootstrap() {
+    log "Checking dependencies..."
+    command -v docker >/dev/null 2>&1 || { echo "ERROR: docker not found"; exit 1; }
+    command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1 || { echo "ERROR: docker compose not found"; exit 1; }
+    log "Environment ready."
+}
+
+# 2. Lint
+lint() {
+    log "Running linting suite..."
+    docker compose -f "$REPO_ROOT/compose/docker-compose.yml" --profile lint run --rm lint-runner
+}
+
+# 3. Test
+test_suite() {
+    log "Running tests..."
+    docker compose -f "$REPO_ROOT/compose/docker-compose.yml" --profile test --profile interactive run --rm test-runner
+}
+
+# 4. Smoke Test
+smoke_test() {
+    log "Running smoke tests..."
+    # Build 'test' intent if it doesn't exist
+    docker compose -f "$REPO_ROOT/compose/docker-compose.yml" build winebot
+    docker compose -f "$REPO_ROOT/compose/docker-compose.yml" --profile test run --rm smoke-test
+}
+
+# 5. Build
+build() {
+    intent="${1:-rel}"
+    log "Building image (intent: $intent)..."
+    BUILD_INTENT="$intent" docker compose -f "$REPO_ROOT/compose/docker-compose.yml" build winebot
+}
+
+# 6. Vuln (Trivy)
+vuln() {
+    log "Running vulnerability scan..."
+    if command -v trivy >/dev/null 2>&1; then
+        trivy fs .
+    else
+        log "trivy not found on host, running via docker..."
+        docker run --rm -v "$REPO_ROOT:/work" -w /work aquasec/trivy fs .
+    fi
+}
+
+# 7. winebotctl Proxy
+ctl() {
+    "$REPO_ROOT/scripts/bin/winebotctl" "$@"
+}
+
+command="${1:-help}"
+shift || true
+
+case "$command" in
+    bootstrap)  bootstrap ;;
+    lint)       lint ;;
+    test)       test_suite ;;
+    smoke-test) smoke_test ;;
+    build)      build "$@" ;;
+    vuln)       vuln ;;
+    ctl)        ctl "$@" ;;
+    help|--help|-h) usage ;;
+    *)          log "Unknown command: $command"; usage; exit 1 ;;
+esac

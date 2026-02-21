@@ -30,8 +30,16 @@ Do not disclose vulnerabilities publicly in issues or pull requests. Report secu
 
 ## Development Policies
 
+### Unified Lifecycle Management
+WineBot uses a unified entrypoint for development tasks. Use the `scripts/wb` tool to ensure consistency:
+- `scripts/wb bootstrap`: Initialize the environment.
+- `scripts/wb lint`: Run Ruff and Mypy.
+- `scripts/wb test`: Run unit tests.
+- `scripts/wb smoke-test`: Run full diagnostic suite.
+- `scripts/wb vuln`: Run vulnerability scans.
+
 ### Containerized Tooling
 WineBot enforces a strict policy of containerized development. Do not run tests or linters on your host machine.
 - Reference: `policy/containerized-tooling-policy.md`
-- Usage: `scripts/smoke-test.sh --full`
+- Usage: `scripts/wb smoke-test`
 
